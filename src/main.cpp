@@ -5,11 +5,12 @@
 void setup()
 {
     Serial.begin(115200);
+    Serial.println("hi poop");
     Wire.begin();
     SetupDisplay();
     SetupBLE();
     SetupIMU();
-    SetupAccelerometer();
+    //SetupAccelerometer();
     SetupVoltageReader();
     SetupMotors();
 }
@@ -17,7 +18,7 @@ void setup()
 void loop()
 {
     GetIMUData();
-    GetAccelerometerData();
+    //GetAccelerometerData();
     GetVoltageData();
     DisplayText(0.01, _line0, _line1, _line2, _line3, _line4, _line5);
     SetDataForBroadcast();
@@ -116,11 +117,51 @@ void SetupBLE()
 
 void SetupMotors()
 {
-    _testServoL.attach(PIN_TEST_SERVO_L, 1000, 2000);
-    _testServoL.setPeriodHertz(100);
+    DisplayText(0.25, "Attaching motors", "Pins: " + String(PIN_TEST_SERVO_L) + ", " + String(PIN_TEST_SERVO_R) );
 
-    _testServoR.attach(PIN_TEST_SERVO_R, 1000, 2000);
-    _testServoR.setPeriodHertz(100);
+    ESP32_ISR_Servos.useTimer(USE_ESP32_TIMER_NO);
+    
+    servoLIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_L, 1000, 2000);
+    servoRIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_R, 1000, 2000);
+    servoW0Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W0, 1000, 2000);
+    servoW1Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W1, 1000, 2000);
+    
+    if (servoLIndex == -1)
+    {
+        DisplayText(1, "Failure L Servo");
+    }
+    else
+    {
+        DisplayText(0.25, "Success L Servo");
+    }
+
+    if (servoRIndex == -1)
+    {
+        DisplayText(1, "Failure R Servo");
+    }
+    else
+    {
+        DisplayText(0.25, "Success R Servo");
+    }
+
+    if (servoW0Index == -1)
+    {
+        DisplayText(1, "Failure W0 Servo");
+    }
+    else
+    {
+        DisplayText(0.25, "Success W0 Servo");
+    }
+
+    if (servoW1Index == -1)
+    {
+        DisplayText(1, "Failure W1 Servo");
+    }
+    else
+    {
+        DisplayText(0.25, "Success W1 Servo");
+    }
+
 }
 
 void SetupVoltageReader()
@@ -172,15 +213,30 @@ void SetMotorOutputs()
     SetMotorOutput(_testServoL, ctrlValue0);
     SetMotorOutput(_testServoR, ctrlValue1);
      */
-    _testServoL.write(ctrlValue0);
-    _testServoR.write(ctrlValue1);
+    
+    if(servoLIndex != -1)
+    {
+        ESP32_ISR_Servos.setPosition(servoLIndex, ctrlValue0);
+    }
+    if(servoRIndex != -1)
+    {
+        ESP32_ISR_Servos.setPosition(servoRIndex, ctrlValue1);
+    }
+    if(servoW0Index != -1)
+    {
+        ESP32_ISR_Servos.setPosition(servoW0Index, ctrlValue2);
+    }
+    if(servoW1Index != -1)
+    {
+        ESP32_ISR_Servos.setPosition(servoW1Index, ctrlValue3);
+    }
 }
 
 void SetDataForBroadcast()
 {
     _line2 = "-";
     _line3 = String(voltageReadingRaw)+ " raw, " + String((float)voltageReadingMv/(float)1000) + "V";
-    _line4 = "ctrl: " + String(ctrlAllMessage) + " "  + String(ctrlValue0) + " " + String(ctrlValue1);
+    _line4 = "ctrl: " + String(ctrlValue0) + " " + String(ctrlValue1)+ " " + String(ctrlValue2)+ " " + String(ctrlValue3);
 
 
     if (pServer->getConnectedCount())
@@ -219,17 +275,24 @@ void SetDataForBroadcast()
 
                 if(ctrlAllMessage != "PEE")
                 {
-                    int ctrlAsInt = ctrlAllMessage.getValue<int>();
+                    uint8_t* pData = (uint8_t*)ctrlAllMessage.data();
+                    /*
+                    byte ctrlByteArray[8];
+                    ctrlByteArray[0] =  ctrlAsInt &   0x00000000000000ff;
+                    ctrlByteArray[1] = (ctrlAsInt &   0x000000000000ff00) >> 8;
+                    ctrlByteArray[2] =  (ctrlAsInt &  0x0000000000ff0000) >> 16;
+                    ctrlByteArray[3] = (ctrlAsInt &   0x00000000ff000000) >> 24;
+                    ctrlByteArray[4] = (ctrlAsInt &   0x000000ff00000000) >> 32;
+                    ctrlByteArray[5] =  (ctrlAsInt &  0x0000ff0000000000) >> 40;
+                    ctrlByteArray[6] = (ctrlAsInt &   0x00ff000000000000) >> 48;
+                    ctrlByteArray[7] = (ctrlAsInt &   0xff00000000000000) >> 56;
+                     */
 
-                    byte ctrlByteArray[4];
-                    ctrlByteArray[0] =  ctrlAsInt & 0x000000ff;
-                    ctrlByteArray[1] = (ctrlAsInt & 0x0000ff00) >> 8;
-                    ctrlByteArray[2] =  (ctrlAsInt & 0x00ff0000) >> 16;
-                    ctrlByteArray[3] = (ctrlAsInt & 0xff000000) >> 24;
 
-
-                    ctrlValue0 = (ctrlByteArray[1] << 8) | ctrlByteArray[0];
-                    ctrlValue1 = (ctrlByteArray[3] << 8) | (ctrlByteArray[2]);
+                    ctrlValue0 = (pData[1] << 8) | pData[0] - safetyOffset;
+                    ctrlValue1 = (pData[3] << 8) | (pData[2]) - safetyOffset;
+                    ctrlValue2 = (pData[5] << 8) | pData[4] - safetyOffset;
+                    ctrlValue3 = (pData[7] << 8) | (pData[6]) - safetyOffset;
 
                 }
 
