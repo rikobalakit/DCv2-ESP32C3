@@ -5,89 +5,154 @@
 void setup()
 {
     Serial.begin(115200);
-    Serial.println("hi poop");
+    Serial.setTimeout(1);
+    SafeSerialPrintLn("Beginning serial");
     Wire.begin();
-    SetupDisplay();
-    SetupBLE();
-    //SetupIMU();
-    SetupAccelerometer();
-    SetupVoltageReader();
-    SetupMotors();
-    SetupWeaponTelemetryConnection();
+#if LEDS_ENABLED
+    InitializeLeds();
+#endif
+
+#if DISPLAY_ENABLED
+    InitializeDisplay();
+#endif
+
+#if BLUETOOTH_ENABLED
+    InitializeBluetooth();
+#endif
+
+#if IMU_ENABLED
+    InitializeImu();
+#endif
+
+#if ACCELEROMETER_ENABLED
+    InitializeAccelerometer();
+#endif
+
+#if VOLTAGE_READER_ENABLED
+    InitializeVoltageReader();
+#endif
+
+#if MOTORS_ENABLED
+    InitializeMotors();
+#endif
+
+#if TELEMETRY_ENABLED
+    InitializeEscTelemetry();
+#endif
+
+
 }
 
 void loop()
 {
-    motorOutputsSetDuringTelemetryReading = false;
+    delayMicroseconds(10); // this is just in for safety...
     
-    //GetIMUData();
-    GetAccelerometerData();
-    GetVoltageData();
-    GetWeaponTelemetry();
-    DisplayText(0.01, _line0, _line1, _line2, _line3, _line4, _line5);
-    SetDataForBroadcast();
-    if(!motorOutputsSetDuringTelemetryReading)
+
+#if TELEMETRY_ENABLED
+    // must be done at the start to give the most time for a response signal to come back
+    SetWeaponTelemetrySignal();
+#endif
+
+    while((micros()-timeTelemetrySignalSentMicros) < DELAY_BEFORE_TELEMETRY_COMES_BACK);
     {
+        SetTimingData();
+        
+#if MOTORS_ENABLED
         SetMotorOutputs();
+#endif
+
+#if IMU_ENABLED
+        GetIMUData();
+#endif
+
+#if ACCELEROMETER_ENABLED
+        GetAccelerometerData();
+#endif
+
+#if VOLTAGE_READER_ENABLED
+        GetVoltageData();
+#endif
+
+#if BLUETOOTH_ENABLED
+        GetAndSetBluetoothData();
+#endif
+
+#if DISPLAY_ENABLED
+        DisplayText(0.01, _line0, _line1, _line2, _line3, _line4, _line5);
+#endif
+
+#if LEDS_ENABLED
+        SetLeds();
+#endif
     }
+    
+#if TELEMETRY_ENABLED
+    GetWeaponTelemetry();
+#endif
 }
 
 // setup
 
-void SetupDisplay()
+void InitializeDisplay()
 {
-    if (!_displayEnabled)
+    if (!Display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
     {
-        return;
+        _displayEnabledAndFound = false;
     }
+    else
+    {
+        DisplayText(1, "DCv2 Prototype");
+        _displayEnabledAndFound = true;
 
-    delay(100);
-
-    Display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-    DisplayText(1, "DCv2 Prototype");
-
-    _line0 = "";
-    _line1 = "";
-    _line2 = "";
-    _line3 = "";
-    _line4 = "";
-    _line5 = "";
+        _line0 = "";
+        _line1 = "";
+        _line2 = "";
+        _line3 = "";
+        _line4 = "";
+        _line5 = "";
+    }
 }
 
-void SetupIMU()
+void InitializeImu()
 {
-    delay(100);
-
     if (!bno.begin_I2C())
     {
         DisplayText(1, "IMU Error", "Bad Init");
+        _imuEnabledAndFound = true;
     }
     else
     {
         DisplayText(0.25, "IMU Success");
         bno.enableReport(SH2_GAME_ROTATION_VECTOR);
+        _imuEnabledAndFound = false;
     }
 }
 
-void SetupAccelerometer()
+void InitializeAccelerometer()
 {
-    delay(100);
-
     if (!lis.begin_I2C())
     {
         DisplayText(1, "Accel Error", "Bad Init");
+        _accelerometerEnabledAndFound = false;
     }
     else
     {
         DisplayText(0.25, "Accel Success");
         lis.setRange(H3LIS331_RANGE_400_G);
+        _accelerometerEnabledAndFound = true;
     }
 }
 
-void SetupBLE()
+void InitializeLeds()
 {
-    delay(100);
+    pinMode(PIN_NUM_NEOPIXEL_OUTPUT, OUTPUT);
+    delay(1);
+    FastLED.addLeds<NEOPIXEL, PIN_NUM_NEOPIXEL_OUTPUT>(leds, TOTAL_LED);
+    FastLED.show();
+}
 
+void InitializeBluetooth()
+{
     NimBLEDevice::init(BLEName);
     pServer = NimBLEDevice::createServer();
 
@@ -127,21 +192,19 @@ void SetupBLE()
     pAdvertising->start();
 
     DisplayText(0.25, "BLE Success", String(BLEName.c_str()));
-    _line5 = "BLE Name: DCv2";
+    _line5 = "BLE Name: " + String(BLEName.c_str());
 }
 
-void SetupMotors()
+void InitializeMotors()
 {
-    delay(100);
-
     DisplayText(0.25, "Attaching motors", "Pins: " + String(PIN_TEST_SERVO_L) + ", " + String(PIN_TEST_SERVO_R));
 
     ESP32_ISR_Servos.useTimer(USE_ESP32_TIMER_NO);
 
-    servoLIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_L, 0, 2000);
-    servoRIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_R, 0, 2000);
+    servoLIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_L, 1000, 2000);
+    servoRIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_R, 1000, 2000);
     servoW0Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W0, 0, 2000);
-    servoW1Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W1, 0, 2000);
+    servoW1Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W1, 1000, 2000);
 
     if (servoLIndex == -1)
     {
@@ -182,15 +245,20 @@ void SetupMotors()
 }
 
 
-void SetupVoltageReader()
+void InitializeVoltageReader()
 {
-    pinMode(PIN_VOLTAGE_READER, INPUT);
+    pinMode(PIN_VOLTAGE_READER, INPUT_PULLDOWN);
 }
 
 // inputs
 
 void GetIMUData()
 {
+    if (!_imuEnabledAndFound)
+    {
+        return;
+    }
+
     sh2_SensorValue_t sensorValues;
     bno.getSensorEvent(&sensorValues);
 
@@ -213,6 +281,11 @@ void GetIMUData()
 
 void GetAccelerometerData()
 {
+    if (!_accelerometerEnabledAndFound)
+    {
+        return;
+    }
+
     sensors_event_t event;
     lis.getEvent(&event);
 
@@ -221,6 +294,8 @@ void GetAccelerometerData()
             "(" + String(event.acceleration.x) + "," + String(event.acceleration.x) +
             "," +
             String(event.acceleration.x) + ")";
+
+    SafeSerialPrintLn(_line0 + " " + _line1);
 }
 
 void GetVoltageData()
@@ -230,39 +305,41 @@ void GetVoltageData()
     voltageReadingMv = (short) ((float) (voltageReadingRaw) * (7.907455));
 }
 
-void SetupWeaponTelemetryConnection()
+void InitializeEscTelemetry()
 {
-    Serial0.begin(115200); // open seria0 for serial monitor
+    Serial0.begin(115200); // open serial0 for serial monitor
+}
 
-    ulong telemetryRequestWidth = 55;
+void SetWeaponTelemetrySignal()
+{
+    if(millis() < DELAY_BEFORE_STARTING_TELEMETRY)
+    {
+        SafeSerialPrintLn("Skipping SWTS(): too soon after boot");
+        return;
+    }
+
+    ulong telemetryRequestWidth = 50;
 
     ESP32_ISR_Servos.setPulseWidth(servoW0Index, telemetryRequestWidth);
+    timeTelemetrySignalSentMicros = micros();
+
+    delayMicroseconds(REFRESH_INTERVAL);
+    
+    SafeSerialPrintLn("Running SWTS(): now waiting for a reply");
 }
 
 void GetWeaponTelemetry()
 {
-    //read in telemetry from serial
+    SafeSerialPrintLn("Trying to read telemetry reply");
+
+    receivedBytes = 0;
     
+    //read in telemetry from serial
     ulong microsAtStart = micros();
     
-    ulong telemetryRequestWidth = 50;
-
-    ESP32_ISR_Servos.setPulseWidth(servoW0Index, telemetryRequestWidth);
-    
-    delay(20);
-    
-    SetMotorOutputs();
-    motorOutputsSetDuringTelemetryReading = true;
-    
-    isReadingTelemetry = true;
-
-    
-    
-    ulong microsAfterSendSignal = micros();
-    
-    while ((micros()-microsAfterSendSignal < 20000) && receivedBytes < 10)
+    while ((micros() - timeTelemetrySignalSentMicros < (TELEMETRY_READ_TIMEOUT)) && receivedBytes < 10)
     {
-        if(Serial0.available())
+        if (Serial0.available())
         {
             SerialBuf[receivedBytes] = Serial0.read();
             receivedBytes++;
@@ -271,7 +348,7 @@ void GetWeaponTelemetry()
     }
 
     ulong microsAfterReceiveSignal = micros();
-    
+
     if (receivedBytes >= 9)
     {
         uint8_t crc8 = get_crc8(SerialBuf, 9); // get the 8 bit CRC
@@ -289,14 +366,15 @@ void GetWeaponTelemetry()
             ESC_telemetrie[3] = (SerialBuf[5] << 8) | SerialBuf[6]; // used mA/h
             ESC_telemetrie[4] = (SerialBuf[7] << 8) | SerialBuf[8]; // eRpM *100
 
-            W0_Temperature = (float)ESC_telemetrie[0];
-            W0_Voltage = (float)ESC_telemetrie[1]/100;
-            W0_Current = (float)ESC_telemetrie[2]/100;
-            W0_UsedMah = (float)ESC_telemetrie[3];
-            W0_Rpm = (float)ESC_telemetrie[4]*1000;
+            W0_Temperature = (float) ESC_telemetrie[0];
+            W0_Voltage = (float) ESC_telemetrie[1] / 100;
+            W0_Current = (float) ESC_telemetrie[2] / 100;
+            W0_UsedMah = (float) ESC_telemetrie[3];
+            W0_Rpm = (float) ESC_telemetrie[4] * 1000;
 
             //DisplayText(0.1f, "temp: " + String(ESC_telemetrie[0]), "used mA/h: " + String(ESC_telemetrie[3]));
-            _line5 = "T:" + String(ESC_telemetrie[0]) + "C, RPM:"+String(ESC_telemetrie[4]);
+            _line5 = "T:" + String(ESC_telemetrie[0]) + "C, RPM:" + String(ESC_telemetrie[4]);
+            
         }
     }
     else
@@ -306,10 +384,18 @@ void GetWeaponTelemetry()
     }
 
     ulong microsAfterDecodeResponse = micros();
+
     
-    receivedBytes = 0;
-    
+
     ulong microsAtEnd = micros();
+
+    int discardedBytes = 0;
+    while (Serial0.available())
+    {
+        Serial0.read();
+        discardedBytes++;
+        totalDiscardedBytes++;
+    }
 
     //microsAtStart, microsAfterSendSignal, microsAfterReceiveSignal, microsAfterDecodeResponse, microsAtEnd
 
@@ -333,11 +419,8 @@ void GetWeaponTelemetry()
     //Serial.print("eRpM *100: ");
     //Serial.println(ESC_telemetrie[4]);
 
-
-
-
-
-
+    SafeSerialPrintLn("Total: " + String((microsAtEnd-microsAtStart)) + "us, Get reply: "  + String((microsAfterReceiveSignal-timeTelemetrySignalSentMicros)) + "us, " + _line5 + ", discarded " + String(discardedBytes) + " bytes, total discarded "+ String(totalDiscardedBytes) + " bytes");
+    
 }
 
 
@@ -361,6 +444,41 @@ uint8_t get_crc8(uint8_t *Buf, uint8_t BufLen)
 
 // outputs
 
+long GetAverageCyclePeriodMilliseconds()
+{
+    long counter = 0;
+
+    for (int i = 0; i < TIMING_MEASUREMENT_SAMPLES; i++)
+    {
+        counter += timingMeasurementBuffer[i];
+    }
+
+    return counter / TIMING_MEASUREMENT_SAMPLES;
+}
+
+void SetTimingData()
+{
+    timingMeasurementBuffer[currentTimingMeasurementBufferIndex] = micros() - lastCycleTime;
+
+    // iterate or reset
+    currentTimingMeasurementBufferIndex++;
+    if (currentTimingMeasurementBufferIndex >= TIMING_MEASUREMENT_SAMPLES)
+    {
+        currentTimingMeasurementBufferIndex = 0;
+    }
+
+    lastCycleTime = micros();
+    long averageCyclePeriod = GetAverageCyclePeriodMilliseconds();
+
+    String updateRateText =
+            "Update rate: " + String(1000000 / (float) (averageCyclePeriod)) + " Hz (" +
+            String(averageCyclePeriod - 150) +
+            "us)";
+    _line3 = updateRateText;
+
+    SafeSerialPrintLn(updateRateText);
+}
+
 void SetMotorOutputs()
 {
     /*
@@ -372,29 +490,89 @@ void SetMotorOutputs()
 
     if (servoLIndex != -1)
     {
-        //ESP32_ISR_Servos.setPosition(servoLIndex, ctrlValue0);
+        ESP32_ISR_Servos.setPosition(servoLIndex, ctrlValue0);
     }
     if (servoRIndex != -1)
     {
-        //ESP32_ISR_Servos.setPosition(servoRIndex, ctrlValue1);
-    }
-    if (servoW0Index != -1)
-    {
-        ulong neutralPosition = 1500;
-        ulong controlPosition = 1000 + ctrlValue2 * (2000 / 180);
-        //ESP32_ISR_Servos.setPosition(servoW0Index, ctrlValue2);
-        ESP32_ISR_Servos.setPulseWidth(servoW0Index, controlPosition);
+        ESP32_ISR_Servos.setPosition(servoRIndex, ctrlValue1);
     }
     if (servoW1Index != -1)
     {
-        //ESP32_ISR_Servos.setPosition(servoW1Index, ctrlValue3);
+        ESP32_ISR_Servos.setPosition(servoW1Index, ctrlValue3);
     }
+    if (servoW0Index != -1)
+    {
+        ulong controlPosition = 1000 + ctrlValue2 * (2000 / 180);
+        ESP32_ISR_Servos.setPulseWidth(servoW0Index, controlPosition);
+    }
+    delayMicroseconds(REFRESH_INTERVAL);
 }
 
-void SetDataForBroadcast()
+void SetLeds()
+{
+#if LEDS_ENABLED == false
+#endif
+    
+    /*
+    if (GetFlashValue(500))
+    {
+        SetMainLeds(DC_White);
+    }
+    else
+    {
+        SetMainLeds(DC_Grey);
+    }
+     */
+
+    SetMainLeds(DC_Grey);
+
+    for (int i = 2; i < 8; i++)
+    {
+        if (i == wheelIndex)
+        {
+            leds[i] = DC_White;
+        }
+        else
+        {
+            leds[i] = CRGB::Black;
+        }
+    }
+
+    wheelIndex++;
+    if (wheelIndex == 8)
+    {
+        wheelIndex = 2;
+    }
+
+    FastLED.show();
+}
+
+void SetMainLeds(CRGB color)
+{
+    leds[LED_BOARD] = color;
+    leds[LED_CENTER] = color;
+}
+
+bool GetFlashValue(int periodMilliseconds, bool startsTrue)
+{
+    if (startsTrue)
+    {
+        return (millis() % periodMilliseconds < periodMilliseconds / 2);
+    }
+    else
+    {
+        return (millis() % periodMilliseconds > periodMilliseconds / 2);
+    }
+
+}
+
+void GetAndSetBluetoothData()
 {
     _line2 = "-";
-    _line3 = String(voltageReadingRaw) + " raw, " + String((float) voltageReadingMv / (float) 1000) + "V";
+    //_line3 = String(voltageReadingRaw) + " raw, " + String((float) voltageReadingMv / (float) 1000) + "V";
+
+
+
     _line4 = "ctrl: " + String(ctrlValue0) + " " + String(ctrlValue1) + " " + String(ctrlValue2) + " " +
              String(ctrlValue3);
 
@@ -454,6 +632,8 @@ void SetDataForBroadcast()
                     ctrlValue2 = (pData[5] << 8) | pData[4] - safetyOffset;
                     ctrlValue3 = (pData[7] << 8) | (pData[6]) - safetyOffset;
 
+                    SafeSerialPrintLn("ctrl: " + String(ctrlValue0) + " " + String(ctrlValue1) + " " + String(ctrlValue2) + " " +
+                                      String(ctrlValue3));
                 }
 
             }
@@ -481,9 +661,17 @@ bool isNumber(const std::string &s)
     return true;
 }
 
+void SafeSerialPrintLn(String lineToPrint)
+{
+    if(_serialDebugEnabled && Serial.availableForWrite())
+    {
+        Serial.println(lineToPrint);
+    }
+}
+
 void DisplayText(float timeSeconds, String line0, String line1, String line2, String line3, String line4, String line5)
 {
-    if (!_displayEnabled)
+    if (!_displayEnabledAndFound)
     {
         return;
     }
