@@ -129,12 +129,13 @@ void InitializeImu()
         _imuEnabledAndFound = false;
     }
 #else
-    if (!bno.begin(OPERATION_MODE_IMUPLUS))
+    if (!bno.begin(OPERATION_MODE_NDOF))
     {
         /* There was a problem detecting the BNO055 ... check your connections */
         Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
         _imuEnabledAndFound = false;
     }
+    
     else
     {
         _imuEnabledAndFound = true;
@@ -321,6 +322,13 @@ void GetIMUData()
     BNOAccelerationY = sensorValues.un.accelerometer.y;
     BNOAccelerationZ = sensorValues.un.accelerometer.z;
     
+    BNOTemp = sensorValues.un.accelerometer.z;
+    
+    BNOCalibrationSystem = 3;
+    BNOCalibrationGyro = 3;
+    BNOCalibrationAccelerometer = 3;
+    BNOCalibrationMagnetometer = 3;
+    
 #else
     bno.getEvent(&event);
 
@@ -334,6 +342,13 @@ void GetIMUData()
     BNOAccelerationX = event.acceleration.x;
     BNOAccelerationY = event.acceleration.y;
     BNOAccelerationZ = event.acceleration.z;
+
+    BNOTemp = bno.getTemp();
+
+    bno.getCalibration(&BNOCalibrationSystem, &BNOCalibrationGyro, &BNOCalibrationAccelerometer, &BNOCalibrationMagnetometer);
+
+    
+    bno.getSensorOffsets(bnoCalibrationOffsets);
     
 #endif
 
@@ -704,9 +719,9 @@ void GetAndSetBluetoothData()
                 PushFloatToTelemetryVector(orientationJ);
                 PushFloatToTelemetryVector(orientationK);
 
-                PushIntSixteenToTelemetryVector(BNOAccelerationX);
-                PushIntSixteenToTelemetryVector(BNOAccelerationY);
-                PushIntSixteenToTelemetryVector(BNOAccelerationZ);
+                PushIntSixteenToTelemetryVector(BNOAccelerationX * 1000);
+                PushIntSixteenToTelemetryVector(BNOAccelerationY * 1000);
+                PushIntSixteenToTelemetryVector(BNOAccelerationZ * 1000);
 
                 PushIntSixteenToTelemetryVector(LISAccelerationX);
                 PushIntSixteenToTelemetryVector(LISAccelerationY);
@@ -718,6 +733,14 @@ void GetAndSetBluetoothData()
                 PushIntSixteenToTelemetryVector(W0_UsedMah);
                 PushIntSixteenToTelemetryVector(W0_Rpm);
 
+                TelemetryVector.push_back(BNOTemp);
+
+                TelemetryVector.push_back(BNOCalibrationSystem);
+                TelemetryVector.push_back(BNOCalibrationGyro);
+                TelemetryVector.push_back(BNOCalibrationAccelerometer);
+                TelemetryVector.push_back(BNOCalibrationMagnetometer);
+
+                
                 pChrAll->setValue(TelemetryVector);
                 pChrAll->notify(true);
             }

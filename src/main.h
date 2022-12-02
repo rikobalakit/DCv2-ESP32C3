@@ -23,6 +23,12 @@
 #define TELEMETRY_ALL_UUID "64dc361e-9e25-4ab9-aa07-4813b15f2c83"
 #define CTRL_ALL_UUID "1d340766-ffa2-4aed-b03d-cf3796a46d82"
 
+// Want to declare a list of safe client addresses
+// steam deck
+// ipad
+// iphone
+// laptop
+
 #define LEDS_ENABLED true
 #define DISPLAY_ENABLED false
 #define BLUETOOTH_ENABLED true
@@ -32,6 +38,8 @@
 #define VOLTAGE_READER_ENABLED true
 #define MOTORS_ENABLED true
 #define TELEMETRY_ENABLED true
+
+#define DEBUG_
 
 #if (USING_LEGACY_BNO055 != true)
 #include <Adafruit_BNO08x.h>
@@ -92,6 +100,13 @@ float BNOAccelerationZ;
 float LISAccelerationX;
 float LISAccelerationY;
 float LISAccelerationZ;
+
+int8_t BNOTemp = 0;
+
+uint8_t BNOCalibrationSystem = 0;
+uint8_t BNOCalibrationGyro = 0;
+uint8_t BNOCalibrationAccelerometer = 0;
+uint8_t BNOCalibrationMagnetometer = 0;
 
 NimBLEAttValue ctrlAllMessage;
 
@@ -173,11 +188,11 @@ long lastCycleTime = 0;
 
 static int16_t ESC_telemetrie[5]; // Temperature, Voltage, Current, used mAh, eRpM
 
-static int16_t W0_Temperature;
-static int16_t W0_Voltage;
-static int16_t W0_Current;
-static int16_t W0_UsedMah;
-static int16_t W0_Rpm;
+static int16_t W0_Temperature = 0x00;
+static int16_t W0_Voltage = 0x00;
+static int16_t W0_Current = 0x00;
+static int16_t W0_UsedMah = 0x00;
+static int16_t W0_Rpm = 0x00;
 
 #define DELAY_BEFORE_TELEMETRY_COMES_BACK 20000
 #define TELEMETRY_READ_TIMEOUT 50000
@@ -185,6 +200,7 @@ static int16_t W0_Rpm;
 static uint16_t requestTelemetrie = 0;
 static uint16_t regularThrottleSignal = 1000;
 static uint8_t SerialBuf[10];
+static byte bnoCalibrationOffsets[22];
 static uint8_t receivedBytes = 0;
 long timeTelemetrySignalSentMicros;
 
