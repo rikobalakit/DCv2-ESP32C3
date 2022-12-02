@@ -14,23 +14,32 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <Adafruit_BNO08x.h>
+
 #include <NimBLEDevice.h>
 #include <Adafruit_H3LIS331.h>
 #include <ESP32_New_ISR_Servo.h>
 
 #define SERVICE_UUID "7ac5d0b9-a214-4c2b-b02a-7d300d756709"
-#define ORIENTATION_ALL_UUID "64dc361e-9e25-4ab9-aa07-4813b15f2c83"
+#define TELEMETRY_ALL_UUID "64dc361e-9e25-4ab9-aa07-4813b15f2c83"
 #define CTRL_ALL_UUID "1d340766-ffa2-4aed-b03d-cf3796a46d82"
 
 #define LEDS_ENABLED true
 #define DISPLAY_ENABLED false
 #define BLUETOOTH_ENABLED true
-#define IMU_ENABLED false
+#define IMU_ENABLED true
+#define USING_LEGACY_BNO055 true
 #define ACCELEROMETER_ENABLED true
 #define VOLTAGE_READER_ENABLED true
 #define MOTORS_ENABLED true
 #define TELEMETRY_ENABLED true
+
+#if (USING_LEGACY_BNO055 != true)
+#include <Adafruit_BNO08x.h>
+#else
+#include <Adafruit_BNO055.h>
+#endif
+
+using namespace std;
 
 /*
  * TIMING STUFF:
@@ -53,16 +62,37 @@ bool _accelerometerEnabledAndFound = false;
 bool _serialDebugEnabled = true;
 bool _debugEnabled = false;
 Adafruit_SSD1306 Display(-1); //-1 arg means no reset pin
+
+
+#if (USING_LEGACY_BNO055 != true)
 Adafruit_BNO08x bno = Adafruit_BNO08x();
+#else
+Adafruit_BNO055 bno = Adafruit_BNO055(55);
+sensors_event_t event; //I dont think this can be renamed either
+#endif
+
+
 Adafruit_H3LIS331 lis = Adafruit_H3LIS331();
 
 String _line0, _line1, _line2, _line3, _line4, _line5;
 
 static NimBLEServer *pServer;
 
-float orientationX;
-float orientationY;
-float orientationZ;
+vector<uint8_t> TelemetryVector;
+
+float orientationR; // aka real, or W
+float orientationI; // aka x
+float orientationJ; // aka y
+float orientationK; // aka z
+
+float BNOAccelerationX;
+float BNOAccelerationY;
+float BNOAccelerationZ;
+
+float LISAccelerationX;
+float LISAccelerationY;
+float LISAccelerationZ;
+
 NimBLEAttValue ctrlAllMessage;
 
 #define PIN_VOLTAGE_READER A0
@@ -71,9 +101,9 @@ NimBLEAttValue ctrlAllMessage;
 // untested since totally reserved: D4 D5
 // these pins will prob be reserved: D6 (uart), D7 (uart), D0/A1 (voltage reading)
 #define PIN_TEST_SERVO_L D8
-#define PIN_TEST_SERVO_R D9
-#define PIN_TEST_SERVO_W0 D10
-#define PIN_TEST_SERVO_W1 D3
+#define PIN_TEST_SERVO_R D3
+#define PIN_TEST_SERVO_W0 D9
+#define PIN_TEST_SERVO_W1 D10
 #define PIN_NUM_NEOPIXEL_OUTPUT D2
 
 // RGBLEDs
@@ -110,15 +140,18 @@ CRGB DC_Grey = CHSV(0, 0, MAX_BRIGHTNESS/10);
 
 int wheelIndex = 2;
 
-short safetyOffset = 0;
+bool bluetoothClientExists = false;
+bool receivedHeartbeat = true; //faked for now
 
-short ctrlValue0 = 90;
-short ctrlValue1 = 90;
-short ctrlValue2 = 90;
-short ctrlValue3 = 90;
+int16_t safetyOffset = 0;
 
-short voltageReadingRaw;
-short voltageReadingMv;
+int16_t ctrlValue0 = 90;
+int16_t ctrlValue1 = 90;
+int16_t ctrlValue2 = 90;
+int16_t ctrlValue3 = 90;
+
+int16_t voltageReadingRaw;
+int16_t voltageReadingMv;
 
 int servoLIndex = -1;
 int servoRIndex = -1;
@@ -128,6 +161,10 @@ int servoW1Index = -1;
 bool _interpretString = false;
 
 #define TIMING_MEASUREMENT_SAMPLES 16
+#define MINIMUM_VOLTAGE_BATTERY_FULL 15600
+#define MINIMUM_VOLTAGE_BATTERY_LOW 14000
+#define MINIMUM_VOLTAGE_BATTERY_DEAD 13200
+#define MINIMUM_VOLTAGE_USING_USB 6000
 long timingMeasurementBuffer[TIMING_MEASUREMENT_SAMPLES];
 int currentTimingMeasurementBufferIndex = 0;
 long lastCycleTime = 0;

@@ -46,17 +46,18 @@ void setup()
 void loop()
 {
     delayMicroseconds(10); // this is just in for safety...
-    
+
 
 #if TELEMETRY_ENABLED
     // must be done at the start to give the most time for a response signal to come back
     SetWeaponTelemetrySignal();
 #endif
 
-    while((micros()-timeTelemetrySignalSentMicros) < DELAY_BEFORE_TELEMETRY_COMES_BACK);
+    while ((micros() - timeTelemetrySignalSentMicros) < DELAY_BEFORE_TELEMETRY_COMES_BACK)
+    {}
     {
         SetTimingData();
-        
+
 #if MOTORS_ENABLED
         SetMotorOutputs();
 #endif
@@ -85,7 +86,7 @@ void loop()
         SetLeds();
 #endif
     }
-    
+
 #if TELEMETRY_ENABLED
     GetWeaponTelemetry();
 #endif
@@ -115,6 +116,7 @@ void InitializeDisplay()
 
 void InitializeImu()
 {
+#if (USING_LEGACY_BNO055 != true)
     if (!bno.begin_I2C())
     {
         DisplayText(1, "IMU Error", "Bad Init");
@@ -126,6 +128,26 @@ void InitializeImu()
         bno.enableReport(SH2_GAME_ROTATION_VECTOR);
         _imuEnabledAndFound = false;
     }
+#else
+    if (!bno.begin(OPERATION_MODE_IMUPLUS))
+    {
+        /* There was a problem detecting the BNO055 ... check your connections */
+        Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
+        _imuEnabledAndFound = false;
+    }
+    else
+    {
+        _imuEnabledAndFound = true;
+    }
+    
+    delay(10);
+
+    if (_imuEnabledAndFound)
+    {
+        bno.setExtCrystalUse(true);
+
+    }
+#endif
 }
 
 void InitializeAccelerometer()
@@ -167,7 +189,7 @@ void InitializeBluetooth()
     pServer->updateConnParams(conn_handle, minInterval, maxInterval, latency, timeout);
 
     NimBLECharacteristic *pOrientationAll = pService->createCharacteristic(
-            ORIENTATION_ALL_UUID,
+            TELEMETRY_ALL_UUID,
             NIMBLE_PROPERTY::READ |
             NIMBLE_PROPERTY::NOTIFY
     );
@@ -180,7 +202,20 @@ void InitializeBluetooth()
             NIMBLE_PROPERTY::WRITE_NR
     );
 
-    pCtrlAll->setValue("PEE");
+    int16_t neutralPosition = (int16_t) 90;
+
+    byte orientationByte[8];
+    orientationByte[0] = neutralPosition & 0x00ff;
+    orientationByte[1] = (neutralPosition & 0xff00) >> 8;
+    orientationByte[2] = neutralPosition & 0x00ff;
+    orientationByte[3] = (neutralPosition & 0xff00) >> 8;
+    orientationByte[4] = neutralPosition & 0x00ff;
+    orientationByte[5] = (neutralPosition & 0xff00) >> 8;
+    orientationByte[6] = neutralPosition & 0x00ff;
+    orientationByte[7] = (neutralPosition & 0xff00) >> 8;
+
+
+    pCtrlAll->setValue(orientationByte);
 
     pService->start();
     // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still is working for backward compatibility
@@ -200,6 +235,8 @@ void InitializeMotors()
     DisplayText(0.25, "Attaching motors", "Pins: " + String(PIN_TEST_SERVO_L) + ", " + String(PIN_TEST_SERVO_R));
 
     ESP32_ISR_Servos.useTimer(USE_ESP32_TIMER_NO);
+
+    ESP32_ISR_Servos.disableAll();
 
     servoLIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_L, 1000, 2000);
     servoRIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_R, 1000, 2000);
@@ -258,6 +295,8 @@ void GetIMUData()
     {
         return;
     }
+#if USING_LEGACY_BNO055 == false
+    
 
     sh2_SensorValue_t sensorValues;
     bno.getSensorEvent(&sensorValues);
@@ -272,10 +311,31 @@ void GetIMUData()
             "(" + String(sensorValues.un.gameRotationVector.i) + "," + String(sensorValues.un.gameRotationVector.j) +
             "," +
             String(sensorValues.un.gameRotationVector.k) + "," + String(sensorValues.un.gameRotationVector.real) + ")";
-    orientationX = sensorValues.un.gameRotationVector.i;
-    orientationY = sensorValues.un.gameRotationVector.j;
-    orientationZ = sensorValues.un.gameRotationVector.k;
 
+    orientationR = sensorValues.un.gameRotationVector.real;
+    orientationI = sensorValues.un.gameRotationVector.i;
+    orientationJ = sensorValues.un.gameRotationVector.j;
+    orientationK = sensorValues.un.gameRotationVector.k;
+    
+    BNOAccelerationX = sensorValues.un.accelerometer.x;
+    BNOAccelerationY = sensorValues.un.accelerometer.y;
+    BNOAccelerationZ = sensorValues.un.accelerometer.z;
+    
+#else
+    bno.getEvent(&event);
+
+    imu::Quaternion quat = bno.getQuat();
+
+    orientationR = quat.w();
+    orientationI = quat.x();
+    orientationJ = quat.y();
+    orientationK = quat.z();
+
+    BNOAccelerationX = event.acceleration.x;
+    BNOAccelerationY = event.acceleration.y;
+    BNOAccelerationZ = event.acceleration.z;
+    
+#endif
 
 }
 
@@ -285,24 +345,19 @@ void GetAccelerometerData()
     {
         return;
     }
-
-    sensors_event_t event;
+    
     lis.getEvent(&event);
 
-    _line0 = "Acceleration";
-    _line1 =
-            "(" + String(event.acceleration.x) + "," + String(event.acceleration.x) +
-            "," +
-            String(event.acceleration.x) + ")";
-
-    SafeSerialPrintLn(_line0 + " " + _line1);
+    LISAccelerationX = event.acceleration.x;
+    LISAccelerationY = event.acceleration.y;
+    LISAccelerationZ = event.acceleration.z;
 }
 
 void GetVoltageData()
 {
     voltageReadingRaw = analogRead(PIN_VOLTAGE_READER);
     // batt is 15.38, v after divider is 1.392, raw is
-    voltageReadingMv = (short) ((float) (voltageReadingRaw) * (7.907455));
+    voltageReadingMv = (int16_t) ((float) (voltageReadingRaw) * (7.907455));
 }
 
 void InitializeEscTelemetry()
@@ -312,9 +367,8 @@ void InitializeEscTelemetry()
 
 void SetWeaponTelemetrySignal()
 {
-    if(millis() < DELAY_BEFORE_STARTING_TELEMETRY)
+    if (millis() < DELAY_BEFORE_STARTING_TELEMETRY)
     {
-        SafeSerialPrintLn("Skipping SWTS(): too soon after boot");
         return;
     }
 
@@ -324,19 +378,16 @@ void SetWeaponTelemetrySignal()
     timeTelemetrySignalSentMicros = micros();
 
     delayMicroseconds(REFRESH_INTERVAL);
-    
-    SafeSerialPrintLn("Running SWTS(): now waiting for a reply");
 }
 
 void GetWeaponTelemetry()
 {
-    SafeSerialPrintLn("Trying to read telemetry reply");
 
     receivedBytes = 0;
-    
+
     //read in telemetry from serial
     ulong microsAtStart = micros();
-    
+
     while ((micros() - timeTelemetrySignalSentMicros < (TELEMETRY_READ_TIMEOUT)) && receivedBytes < 10)
     {
         if (Serial0.available())
@@ -374,7 +425,7 @@ void GetWeaponTelemetry()
 
             //DisplayText(0.1f, "temp: " + String(ESC_telemetrie[0]), "used mA/h: " + String(ESC_telemetrie[3]));
             _line5 = "T:" + String(ESC_telemetrie[0]) + "C, RPM:" + String(ESC_telemetrie[4]);
-            
+
         }
     }
     else
@@ -385,7 +436,6 @@ void GetWeaponTelemetry()
 
     ulong microsAfterDecodeResponse = micros();
 
-    
 
     ulong microsAtEnd = micros();
 
@@ -419,8 +469,8 @@ void GetWeaponTelemetry()
     //Serial.print("eRpM *100: ");
     //Serial.println(ESC_telemetrie[4]);
 
-    SafeSerialPrintLn("Total: " + String((microsAtEnd-microsAtStart)) + "us, Get reply: "  + String((microsAfterReceiveSignal-timeTelemetrySignalSentMicros)) + "us, " + _line5 + ", discarded " + String(discardedBytes) + " bytes, total discarded "+ String(totalDiscardedBytes) + " bytes");
-    
+    //SafeSerialPrintLn("Total: " + String((microsAtEnd-microsAtStart)) + "us, Get reply: "  + String((microsAfterReceiveSignal-timeTelemetrySignalSentMicros)) + "us, " + _line5 + ", discarded " + String(discardedBytes) + " bytes, total discarded "+ String(totalDiscardedBytes) + " bytes");
+
 }
 
 
@@ -476,7 +526,7 @@ void SetTimingData()
             "us)";
     _line3 = updateRateText;
 
-    SafeSerialPrintLn(updateRateText);
+    //SafeSerialPrintLn(updateRateText);
 }
 
 void SetMotorOutputs()
@@ -486,6 +536,14 @@ void SetMotorOutputs()
     SetMotorOutput(_testServoR, ctrlValue1);
      */
 
+    if (bluetoothClientExists)
+    {
+        ESP32_ISR_Servos.enableAll();
+    }
+    else
+    {
+        ESP32_ISR_Servos.disableAll();
+    }
 
 
     if (servoLIndex != -1)
@@ -511,8 +569,9 @@ void SetMotorOutputs()
 void SetLeds()
 {
 #if LEDS_ENABLED == false
+    return;
 #endif
-    
+
     /*
     if (GetFlashValue(500))
     {
@@ -524,7 +583,49 @@ void SetLeds()
     }
      */
 
-    SetMainLeds(DC_Grey);
+    if (bluetoothClientExists || GetFlashValue(500, false))
+    {
+        if (voltageReadingMv > MINIMUM_VOLTAGE_BATTERY_FULL)
+        {
+            SetMainLeds(CRGB::Green);
+        }
+        else if (voltageReadingMv > MINIMUM_VOLTAGE_BATTERY_LOW)
+        {
+            SetMainLeds(CRGB::Yellow);
+        }
+        else if (voltageReadingMv > MINIMUM_VOLTAGE_BATTERY_DEAD)
+        {
+            SetMainLeds(CRGB::Red);
+        }
+        else if (voltageReadingMv > MINIMUM_VOLTAGE_USING_USB)
+        {
+            if (GetFlashValue(250, true))
+            {
+                SetMainLeds(CRGB::Red);
+            }
+            else
+            {
+                SetMainLeds(CRGB::Black);
+            }
+        }
+        else
+        {
+            SetMainLeds(CRGB::Purple);
+        }
+
+
+    }
+    else
+    {
+        if (GetFlashValue(500, true))
+        {
+            SetMainLeds(CRGB::Blue);
+        }
+        else
+        {
+            SetMainLeds(CRGB::Black);
+        }
+    }
 
     for (int i = 2; i < 8; i++)
     {
@@ -566,44 +667,59 @@ bool GetFlashValue(int periodMilliseconds, bool startsTrue)
 
 }
 
+void PushFloatToTelemetryVector(float floatValue)
+{
+    unsigned char const * p = reinterpret_cast<unsigned char const *>(&floatValue);
+    TelemetryVector.push_back(p[0]);
+    TelemetryVector.push_back(p[1]);
+    TelemetryVector.push_back(p[2]);
+    TelemetryVector.push_back(p[3]);
+}
+
+void PushIntSixteenToTelemetryVector(int16_t intValue)
+{
+    unsigned char const * p = reinterpret_cast<unsigned char const *>(&intValue);
+    TelemetryVector.push_back(p[0]);
+    TelemetryVector.push_back(p[1]);
+}
+
 void GetAndSetBluetoothData()
 {
-    _line2 = "-";
-    //_line3 = String(voltageReadingRaw) + " raw, " + String((float) voltageReadingMv / (float) 1000) + "V";
-
-
-
-    _line4 = "ctrl: " + String(ctrlValue0) + " " + String(ctrlValue1) + " " + String(ctrlValue2) + " " +
-             String(ctrlValue3);
-
-
+    TelemetryVector.clear();
+    
     if (pServer->getConnectedCount())
     {
+        bluetoothClientExists = true;
+
         NimBLEService *pSvc = pServer->getServiceByUUID(SERVICE_UUID);
         if (pSvc)
         {
-            NimBLECharacteristic *pChrAll = pSvc->getCharacteristic(ORIENTATION_ALL_UUID);
+            NimBLECharacteristic *pChrAll = pSvc->getCharacteristic(TELEMETRY_ALL_UUID);
             if (pChrAll)
             {
-                short xShort = (short) orientationX;
-                short yShort = (short) orientationY;
-                short zShort = (short) orientationZ;
+                PushIntSixteenToTelemetryVector(voltageReadingMv);
+                
+                PushFloatToTelemetryVector(orientationR);
+                PushFloatToTelemetryVector(orientationI);
+                PushFloatToTelemetryVector(orientationJ);
+                PushFloatToTelemetryVector(orientationK);
 
+                PushIntSixteenToTelemetryVector(BNOAccelerationX);
+                PushIntSixteenToTelemetryVector(BNOAccelerationY);
+                PushIntSixteenToTelemetryVector(BNOAccelerationZ);
 
-                byte orientationByte[8];
-                orientationByte[0] = xShort & 0x00ff;
-                orientationByte[1] = (xShort & 0xff00) >> 8;
-                orientationByte[2] = yShort & 0x00ff;
-                orientationByte[3] = (yShort & 0xff00) >> 8;
-                orientationByte[4] = zShort & 0x00ff;
-                orientationByte[5] = (zShort & 0xff00) >> 8;
-                orientationByte[6] = voltageReadingMv & 0x00ff;
-                orientationByte[7] = (voltageReadingMv & 0xff00) >> 8;
+                PushIntSixteenToTelemetryVector(LISAccelerationX);
+                PushIntSixteenToTelemetryVector(LISAccelerationY);
+                PushIntSixteenToTelemetryVector(LISAccelerationZ);
 
+                PushIntSixteenToTelemetryVector(W0_Temperature);
+                PushIntSixteenToTelemetryVector(W0_Voltage);
+                PushIntSixteenToTelemetryVector(W0_Current);
+                PushIntSixteenToTelemetryVector(W0_UsedMah);
+                PushIntSixteenToTelemetryVector(W0_Rpm);
 
-                pChrAll->setValue(orientationByte);
+                pChrAll->setValue(TelemetryVector);
                 pChrAll->notify(true);
-                _line2 += "all";
             }
 
             NimBLECharacteristic *pCtrlL = pSvc->getCharacteristic(CTRL_ALL_UUID);
@@ -632,12 +748,17 @@ void GetAndSetBluetoothData()
                     ctrlValue2 = (pData[5] << 8) | pData[4] - safetyOffset;
                     ctrlValue3 = (pData[7] << 8) | (pData[6]) - safetyOffset;
 
-                    SafeSerialPrintLn("ctrl: " + String(ctrlValue0) + " " + String(ctrlValue1) + " " + String(ctrlValue2) + " " +
-                                      String(ctrlValue3));
+                    SafeSerialPrintLn(
+                            "ctrl: " + String(ctrlValue0) + " " + String(ctrlValue1) + " " + String(ctrlValue2) + " " +
+                            String(ctrlValue3));
                 }
 
             }
         }
+    }
+    else
+    {
+        bluetoothClientExists = false;
     }
 }
 
@@ -663,7 +784,7 @@ bool isNumber(const std::string &s)
 
 void SafeSerialPrintLn(String lineToPrint)
 {
-    if(_serialDebugEnabled && Serial.availableForWrite())
+    if (_serialDebugEnabled && Serial.availableForWrite())
     {
         Serial.println(lineToPrint);
     }
