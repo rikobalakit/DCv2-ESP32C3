@@ -33,7 +33,7 @@
 #define DISPLAY_ENABLED false
 #define BLUETOOTH_ENABLED true
 #define IMU_ENABLED true
-#define USING_LEGACY_BNO055 true
+#define USING_LEGACY_BNO055 false
 #define ACCELEROMETER_ENABLED true
 #define VOLTAGE_READER_ENABLED true
 #define MOTORS_ENABLED true
@@ -69,6 +69,10 @@ bool _imuEnabledAndFound = false;
 bool _accelerometerEnabledAndFound = false;
 bool _serialDebugEnabled = true;
 bool _debugEnabled = false;
+
+bool _pwmTimingDebugEnabled = false;
+bool _roundTripTimingDebugEnabled = false;
+
 Adafruit_SSD1306 Display(-1); //-1 arg means no reset pin
 
 
@@ -76,9 +80,9 @@ Adafruit_SSD1306 Display(-1); //-1 arg means no reset pin
 Adafruit_BNO08x bno = Adafruit_BNO08x();
 #else
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
-sensors_event_t event; //I dont think this can be renamed either
 #endif
 
+sensors_event_t event; //I dont think this can be renamed either
 
 Adafruit_H3LIS331 lis = Adafruit_H3LIS331();
 
@@ -160,10 +164,10 @@ bool receivedHeartbeat = true; //faked for now
 
 int16_t safetyOffset = 0;
 
-int16_t ctrlValue0 = 90;
-int16_t ctrlValue1 = 90;
-int16_t ctrlValue2 = 90;
-int16_t ctrlValue3 = 90;
+int16_t throttleLeftDrive = 90;
+int16_t throttleRightDrive = 90;
+int16_t throttleWeapon0 = 90;
+int16_t throttleWeapon1 = 90;
 
 int16_t voltageReadingRaw;
 int16_t voltageReadingMv;

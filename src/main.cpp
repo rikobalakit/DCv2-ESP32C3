@@ -47,6 +47,29 @@ void loop()
 {
     delayMicroseconds(10); // this is just in for safety...
 
+    if(_pwmTimingDebugEnabled)
+    {
+        while(true)
+        {
+            SetMotorOutputs();
+
+            throttleLeftDrive = 0;
+            throttleRightDrive = 0;
+            throttleWeapon0 = 0;
+            throttleWeapon1 = 0;
+            
+            delay(1000);
+
+            SetMotorOutputs();
+
+            throttleLeftDrive = 180;
+            throttleRightDrive = 180;
+            throttleWeapon0 = 180;
+            throttleWeapon1 = 180;
+
+            delay(1000);
+        }
+    }
 
 #if TELEMETRY_ENABLED
     // must be done at the start to give the most time for a response signal to come back
@@ -117,16 +140,22 @@ void InitializeDisplay()
 void InitializeImu()
 {
 #if (USING_LEGACY_BNO055 != true)
+    // This means initialize BNO085 instead
     if (!bno.begin_I2C())
     {
         DisplayText(1, "IMU Error", "Bad Init");
-        _imuEnabledAndFound = true;
+        _imuEnabledAndFound = false;
+        SafeSerialPrintLn("IMU Error, BN0085");
     }
     else
     {
         DisplayText(0.25, "IMU Success");
-        bno.enableReport(SH2_GAME_ROTATION_VECTOR);
-        _imuEnabledAndFound = false;
+        bno.enableReport(SH2_GAME_ROTATION_VECTOR, 25000);
+        bno.enableReport(SH2_ACCELEROMETER, 25000);
+        //bno.enableReport(SH2_TEMPERATURE);
+        
+        _imuEnabledAndFound = true;
+        SafeSerialPrintLn("IMU success, BN0085");
     }
 #else
     if (!bno.begin(OPERATION_MODE_NDOF))
@@ -297,37 +326,47 @@ void GetIMUData()
         return;
     }
 #if USING_LEGACY_BNO055 == false
+    int reportsRead = 0;
+    int tempReports = 0;
+    int accelReports = 0;
+    int orientationReports = 0;
     
-
+    long microsAtStart = micros();
+    
     sh2_SensorValue_t sensorValues;
-    bno.getSensorEvent(&sensorValues);
+    while(bno.getSensorEvent(&sensorValues))
+    {
+        reportsRead++;
 
-    uint8_t system, gyro, accel, mag;
-    system = gyro = accel = mag = 0;
-
-    _line0 = "Orientation";
-
-
-    _line1 =
-            "(" + String(sensorValues.un.gameRotationVector.i) + "," + String(sensorValues.un.gameRotationVector.j) +
-            "," +
-            String(sensorValues.un.gameRotationVector.k) + "," + String(sensorValues.un.gameRotationVector.real) + ")";
-
-    orientationR = sensorValues.un.gameRotationVector.real;
-    orientationI = sensorValues.un.gameRotationVector.i;
-    orientationJ = sensorValues.un.gameRotationVector.j;
-    orientationK = sensorValues.un.gameRotationVector.k;
-    
-    BNOAccelerationX = sensorValues.un.accelerometer.x;
-    BNOAccelerationY = sensorValues.un.accelerometer.y;
-    BNOAccelerationZ = sensorValues.un.accelerometer.z;
-    
-    BNOTemp = sensorValues.un.accelerometer.z;
+        switch (sensorValues.sensorId)
+        {
+            case SH2_ACCELEROMETER:
+                BNOAccelerationX = sensorValues.un.accelerometer.x;
+                BNOAccelerationY = sensorValues.un.accelerometer.y;
+                BNOAccelerationZ = sensorValues.un.accelerometer.z;
+                BNOCalibrationAccelerometer = sensorValues.status && 0x00000011;
+                accelReports++;
+                break;
+            case SH2_GAME_ROTATION_VECTOR:
+                orientationR = sensorValues.un.gameRotationVector.real;
+                orientationI = sensorValues.un.gameRotationVector.i;
+                orientationJ = sensorValues.un.gameRotationVector.j;
+                orientationK = sensorValues.un.gameRotationVector.k;
+                BNOCalibrationGyro = sensorValues.status && 0x00000011;
+                BNOCalibrationMagnetometer = sensorValues.status && 0x00000011;
+                orientationReports++;
+                break;
+                /*
+            case SH2_TEMPERATURE:
+                BNOTemp = (int8_t) sensorValues.un.temperature.value;
+                tempReports++;
+                 */
+        }
+    }
+    long microsDelta = micros()-microsAtStart;
     
     BNOCalibrationSystem = 3;
-    BNOCalibrationGyro = 3;
-    BNOCalibrationAccelerometer = 3;
-    BNOCalibrationMagnetometer = 3;
+    SafeSerialPrintLn("Read " + String(reportsRead) + " reports from IMU in " + String (microsDelta)+ " us. Temp:" + String(tempReports) + ", Accel: " + String(accelReports) + ", Gyro: " + String(orientationReports)   );
     
 #else
     bno.getEvent(&event);
@@ -547,11 +586,11 @@ void SetTimingData()
 void SetMotorOutputs()
 {
     /*
-    SetMotorOutput(_testServoL, ctrlValue0);
-    SetMotorOutput(_testServoR, ctrlValue1);
+    SetMotorOutput(_testServoL, throttleLeftDrive);
+    SetMotorOutput(_testServoR, throttleRightDrive);
      */
 
-    if (bluetoothClientExists)
+    if (bluetoothClientExists || _pwmTimingDebugEnabled)
     {
         ESP32_ISR_Servos.enableAll();
     }
@@ -563,19 +602,19 @@ void SetMotorOutputs()
 
     if (servoLIndex != -1)
     {
-        ESP32_ISR_Servos.setPosition(servoLIndex, ctrlValue0);
+        ESP32_ISR_Servos.setPosition(servoLIndex, throttleLeftDrive);
     }
     if (servoRIndex != -1)
     {
-        ESP32_ISR_Servos.setPosition(servoRIndex, ctrlValue1);
+        ESP32_ISR_Servos.setPosition(servoRIndex, throttleRightDrive);
     }
     if (servoW1Index != -1)
     {
-        ESP32_ISR_Servos.setPosition(servoW1Index, ctrlValue3);
+        ESP32_ISR_Servos.setPosition(servoW1Index, throttleWeapon1);
     }
     if (servoW0Index != -1)
     {
-        ulong controlPosition = 1000 + ctrlValue2 * (2000 / 180);
+        ulong controlPosition = 1000 + throttleWeapon0 * (2000 / 180);
         ESP32_ISR_Servos.setPulseWidth(servoW0Index, controlPosition);
     }
     delayMicroseconds(REFRESH_INTERVAL);
@@ -598,6 +637,20 @@ void SetLeds()
     }
      */
 
+    if (_roundTripTimingDebugEnabled)
+    {
+        if(throttleLeftDrive > 90)
+        {
+            SetMainLeds(CRGB::White);
+        }
+        else
+        {
+            SetMainLeds(CRGB::Black);
+        }
+        FastLED.show();
+        return;
+    }
+    
     if (bluetoothClientExists || GetFlashValue(500, false))
     {
         if (voltageReadingMv > MINIMUM_VOLTAGE_BATTERY_FULL)
@@ -766,14 +819,14 @@ void GetAndSetBluetoothData()
                      */
 
 
-                    ctrlValue0 = (pData[1] << 8) | pData[0] - safetyOffset;
-                    ctrlValue1 = (pData[3] << 8) | (pData[2]) - safetyOffset;
-                    ctrlValue2 = (pData[5] << 8) | pData[4] - safetyOffset;
-                    ctrlValue3 = (pData[7] << 8) | (pData[6]) - safetyOffset;
+                    throttleLeftDrive = (pData[1] << 8) | pData[0] - safetyOffset;
+                    throttleRightDrive = (pData[3] << 8) | (pData[2]) - safetyOffset;
+                    throttleWeapon0 = (pData[5] << 8) | pData[4] - safetyOffset;
+                    throttleWeapon1 = (pData[7] << 8) | (pData[6]) - safetyOffset;
 
                     SafeSerialPrintLn(
-                            "ctrl: " + String(ctrlValue0) + " " + String(ctrlValue1) + " " + String(ctrlValue2) + " " +
-                            String(ctrlValue3));
+                            "ctrl: " + String(throttleLeftDrive) + " " + String(throttleRightDrive) + " " + String(throttleWeapon0) + " " +
+                            String(throttleWeapon1));
                 }
 
             }
