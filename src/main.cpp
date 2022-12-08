@@ -47,6 +47,8 @@ void loop()
 {
     delayMicroseconds(10); // this is just in for safety...
 
+    SetFailsafe();
+    
     if(_pwmTimingDebugEnabled)
     {
         while(true)
@@ -590,7 +592,7 @@ void SetMotorOutputs()
     SetMotorOutput(_testServoR, throttleRightDrive);
      */
 
-    if (bluetoothClientExists || _pwmTimingDebugEnabled)
+    if ((bluetoothClientExists && receivedHeartbeat) || _pwmTimingDebugEnabled)
     {
         ESP32_ISR_Servos.enableAll();
     }
@@ -651,7 +653,7 @@ void SetLeds()
         return;
     }
     
-    if (bluetoothClientExists || GetFlashValue(500, false))
+    if ((bluetoothClientExists && receivedHeartbeat) || GetFlashValue(500, false))
     {
         if (voltageReadingMv > MINIMUM_VOLTAGE_BATTERY_FULL)
         {
@@ -733,6 +735,23 @@ bool GetFlashValue(int periodMilliseconds, bool startsTrue)
         return (millis() % periodMilliseconds > periodMilliseconds / 2);
     }
 
+}
+
+void SetFailsafe()
+{
+    if(millis() - timeLastReceivedHeartbeatMillis > TIMEOUT_HEARTBEAT_LOST)
+    {
+        receivedHeartbeat = false;
+
+        if(millis() - timeLastReceivedHeartbeatMillis > TIMEOUT_HEARTBEAT_LOST_REBOOT)
+        {
+            esp_restart();
+        }
+    }
+    else
+    {
+        receivedHeartbeat = true;
+    }
 }
 
 void PushFloatToTelemetryVector(float floatValue)
@@ -818,15 +837,49 @@ void GetAndSetBluetoothData()
                     ctrlByteArray[7] = (ctrlAsInt &   0xff00000000000000) >> 56;
                      */
 
+                    short securityByteStart = (pData[1] << 8) | pData[0];
+                    short securityByteEnd= (pData[15] << 8) | pData[14];
 
-                    throttleLeftDrive = (pData[1] << 8) | pData[0] - safetyOffset;
-                    throttleRightDrive = (pData[3] << 8) | (pData[2]) - safetyOffset;
-                    throttleWeapon0 = (pData[5] << 8) | pData[4] - safetyOffset;
-                    throttleWeapon1 = (pData[7] << 8) | (pData[6]) - safetyOffset;
+                    _passesSecurityByteValidation = (securityByteStart == securityByteValidation) && (securityByteEnd == securityByteValidation);
+                    
+                    if(_passesSecurityByteValidation)
+                    {
+                        long heartbeatTime = (pData[13] << 24) |(pData[12] << 16) |(pData[11] << 8) | (pData[10]);
+                        
+                        previousHeartbeatTime = currentHeartbeatTime;
+                        currentHeartbeatTime = heartbeatTime;
 
-                    SafeSerialPrintLn(
-                            "ctrl: " + String(throttleLeftDrive) + " " + String(throttleRightDrive) + " " + String(throttleWeapon0) + " " +
-                            String(throttleWeapon1));
+                        if(currentHeartbeatTime > previousHeartbeatTime)
+                        {
+                            throttleLeftDrive = (pData[3] << 8) | pData[2];
+                            throttleRightDrive = (pData[5] << 8) | (pData[4]);
+                            throttleWeapon0 = (pData[7] << 8) | pData[6];
+                            throttleWeapon1 = (pData[9] << 8) | (pData[8]);
+                            _skippedHeartbeats = 0;
+                            timeLastReceivedHeartbeatMillis = millis();
+                            SafeSerialPrintLn(
+                                    "ctrl: " + String(securityByteStart) + " "+ String(throttleLeftDrive) + " " + String(throttleRightDrive) + " " + String(throttleWeapon0) + " " +
+                                    String(throttleWeapon1) + " " + String(currentHeartbeatTime) + " "+ String(securityByteEnd) + " ");
+                        }
+
+                        SafeSerialPrintLn(
+                                "INVALID, NO INCREASE HEARTBEAT. ctrl: " + String(securityByteStart) + " "+ String(throttleLeftDrive) + " " + String(throttleRightDrive) + " " + String(throttleWeapon0) + " " +
+                                String(throttleWeapon1) + " " + String(currentHeartbeatTime) + " "+ String(securityByteEnd) + " ");
+
+                        _skippedHeartbeats++;
+                    }
+                    else
+                    {
+                        SafeSerialPrintLn(
+                                "INVALID, BAD SEC BYTE ctrl: " + String(securityByteStart) + " "+ String(throttleLeftDrive) + " " + String(throttleRightDrive) + " " + String(throttleWeapon0) + " " +
+                                String(throttleWeapon1) + " " + String(currentHeartbeatTime) + " "+ String(securityByteEnd) + " ");
+
+                        _skippedHeartbeats++;
+                    }
+
+                    
+
+
                 }
 
             }
@@ -835,6 +888,7 @@ void GetAndSetBluetoothData()
     else
     {
         bluetoothClientExists = false;
+        _skippedHeartbeats++;
     }
 }
 

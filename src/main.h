@@ -160,7 +160,7 @@ CRGB DC_Grey = CHSV(0, 0, MAX_BRIGHTNESS/10);
 int wheelIndex = 2;
 
 bool bluetoothClientExists = false;
-bool receivedHeartbeat = true; //faked for now
+bool receivedHeartbeat = true; 
 
 int16_t safetyOffset = 0;
 
@@ -208,6 +208,17 @@ static byte bnoCalibrationOffsets[22];
 static uint8_t receivedBytes = 0;
 long timeTelemetrySignalSentMicros;
 
+short securityByteValidation = 0x69;
+
+bool _passesSecurityByteValidation = false;
+bool _lastHeartbeatValid = false;
+long previousHeartbeatTime;
+long currentHeartbeatTime;
+long timeLastReceivedHeartbeatMillis;
+#define TIMEOUT_HEARTBEAT_LOST 1000
+#define TIMEOUT_HEARTBEAT_LOST_REBOOT 5000
+int _skippedHeartbeats = 0;
+
 int totalDiscardedBytes = 0;
 // setup
 
@@ -249,6 +260,8 @@ void SetMotorOutputs();
 void GetAndSetBluetoothData();
 
 void SetWeaponTelemetrySignal();
+
+void SetFailsafe();
 
 void SetLeds();
 
