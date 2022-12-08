@@ -48,10 +48,10 @@ void loop()
     delayMicroseconds(10); // this is just in for safety...
 
     SetFailsafe();
-    
-    if(_pwmTimingDebugEnabled)
+
+    if (_pwmTimingDebugEnabled)
     {
-        while(true)
+        while (true)
         {
             SetMotorOutputs();
 
@@ -59,7 +59,7 @@ void loop()
             throttleRightDrive = 0;
             throttleWeapon0 = 0;
             throttleWeapon1 = 0;
-            
+
             delay(1000);
 
             SetMotorOutputs();
@@ -155,7 +155,7 @@ void InitializeImu()
         bno.enableReport(SH2_GAME_ROTATION_VECTOR, 25000);
         bno.enableReport(SH2_ACCELEROMETER, 25000);
         //bno.enableReport(SH2_TEMPERATURE);
-        
+
         _imuEnabledAndFound = true;
         SafeSerialPrintLn("IMU success, BN0085");
     }
@@ -332,11 +332,12 @@ void GetIMUData()
     int tempReports = 0;
     int accelReports = 0;
     int orientationReports = 0;
-    
+
     long microsAtStart = micros();
-    
+
     sh2_SensorValue_t sensorValues;
-    while(bno.getSensorEvent(&sensorValues))
+
+    while (bno.getSensorEvent(&sensorValues))
     {
         reportsRead++;
 
@@ -354,9 +355,30 @@ void GetIMUData()
                 orientationI = sensorValues.un.gameRotationVector.i;
                 orientationJ = sensorValues.un.gameRotationVector.j;
                 orientationK = sensorValues.un.gameRotationVector.k;
+
+                imu::Quaternion currentOrientation(orientationR, orientationI, orientationJ, orientationK);
+
+                auto orientationEuler = currentOrientation.toEuler();
+
+                //SafeSerialPrintLn(
+                //        "euler angles: x:" + String(orientationEuler.x() * 57.2958) + " y: " + String(orientationEuler.y()* 57.2958) +
+                //        " z: " + String(orientationEuler.z()* 57.2958));
+
+                orientationYaw = orientationEuler.x() * -57.2958;
+                orientationPitch = orientationEuler.y()* 57.2958;
+                orientationRoll = orientationEuler.z()* -57.2958;
+                
                 BNOCalibrationGyro = sensorValues.status && 0x00000011;
                 BNOCalibrationMagnetometer = sensorValues.status && 0x00000011;
                 orientationReports++;
+                
+                if(headingResetEngaged)
+                {
+                    smartHeadingOffset = -orientationYaw;
+                }
+
+                SafeSerialPrintLn("heading: " + String(orientationYaw) + ", offset: " + String(smartHeadingOffset) + ", new heading:" + String(orientationYaw+smartHeadingOffset));
+                
                 break;
                 /*
             case SH2_TEMPERATURE:
@@ -365,11 +387,13 @@ void GetIMUData()
                  */
         }
     }
-    long microsDelta = micros()-microsAtStart;
-    
+    long microsDelta = micros() - microsAtStart;
+
     BNOCalibrationSystem = 3;
-    SafeSerialPrintLn("Read " + String(reportsRead) + " reports from IMU in " + String (microsDelta)+ " us. Temp:" + String(tempReports) + ", Accel: " + String(accelReports) + ", Gyro: " + String(orientationReports)   );
-    
+   SafeSerialPrintLn("Read " + String(reportsRead) + " reports from IMU in " + String(microsDelta) + " us. Temp:" +
+                     String(tempReports) + ", Accel: " + String(accelReports) + ", Gyro: " +
+                     String(orientationReports));
+
 #else
     bno.getEvent(&event);
 
@@ -390,7 +414,7 @@ void GetIMUData()
 
     
     bno.getSensorOffsets(bnoCalibrationOffsets);
-    
+
 #endif
 
 }
@@ -401,7 +425,7 @@ void GetAccelerometerData()
     {
         return;
     }
-    
+
     lis.getEvent(&event);
 
     LISAccelerationX = event.acceleration.x;
@@ -641,7 +665,7 @@ void SetLeds()
 
     if (_roundTripTimingDebugEnabled)
     {
-        if(throttleLeftDrive > 90)
+        if (throttleLeftDrive > 90)
         {
             SetMainLeds(CRGB::White);
         }
@@ -652,7 +676,7 @@ void SetLeds()
         FastLED.show();
         return;
     }
-    
+
     if ((bluetoothClientExists && receivedHeartbeat) || GetFlashValue(500, false))
     {
         if (voltageReadingMv > MINIMUM_VOLTAGE_BATTERY_FULL)
@@ -739,11 +763,11 @@ bool GetFlashValue(int periodMilliseconds, bool startsTrue)
 
 void SetFailsafe()
 {
-    if(millis() - timeLastReceivedHeartbeatMillis > TIMEOUT_HEARTBEAT_LOST)
+    if (millis() - timeLastReceivedHeartbeatMillis > TIMEOUT_HEARTBEAT_LOST)
     {
         receivedHeartbeat = false;
 
-        if(millis() - timeLastReceivedHeartbeatMillis > TIMEOUT_HEARTBEAT_LOST_REBOOT)
+        if (millis() - timeLastReceivedHeartbeatMillis > TIMEOUT_HEARTBEAT_LOST_REBOOT)
         {
             esp_restart();
         }
@@ -756,7 +780,7 @@ void SetFailsafe()
 
 void PushFloatToTelemetryVector(float floatValue)
 {
-    unsigned char const * p = reinterpret_cast<unsigned char const *>(&floatValue);
+    unsigned char const *p = reinterpret_cast<unsigned char const *>(&floatValue);
     TelemetryVector.push_back(p[0]);
     TelemetryVector.push_back(p[1]);
     TelemetryVector.push_back(p[2]);
@@ -765,7 +789,7 @@ void PushFloatToTelemetryVector(float floatValue)
 
 void PushIntSixteenToTelemetryVector(int16_t intValue)
 {
-    unsigned char const * p = reinterpret_cast<unsigned char const *>(&intValue);
+    unsigned char const *p = reinterpret_cast<unsigned char const *>(&intValue);
     TelemetryVector.push_back(p[0]);
     TelemetryVector.push_back(p[1]);
 }
@@ -773,7 +797,7 @@ void PushIntSixteenToTelemetryVector(int16_t intValue)
 void GetAndSetBluetoothData()
 {
     TelemetryVector.clear();
-    
+
     if (pServer->getConnectedCount())
     {
         bluetoothClientExists = true;
@@ -785,7 +809,7 @@ void GetAndSetBluetoothData()
             if (pChrAll)
             {
                 PushIntSixteenToTelemetryVector(voltageReadingMv);
-                
+
                 PushFloatToTelemetryVector(orientationR);
                 PushFloatToTelemetryVector(orientationI);
                 PushFloatToTelemetryVector(orientationJ);
@@ -812,7 +836,9 @@ void GetAndSetBluetoothData()
                 TelemetryVector.push_back(BNOCalibrationAccelerometer);
                 TelemetryVector.push_back(BNOCalibrationMagnetometer);
 
-                
+                PushIntSixteenToTelemetryVector(smartHeadingOffset);
+
+
                 pChrAll->setValue(TelemetryVector);
                 pChrAll->notify(true);
             }
@@ -838,46 +864,70 @@ void GetAndSetBluetoothData()
                      */
 
                     short securityByteStart = (pData[1] << 8) | pData[0];
-                    short securityByteEnd= (pData[15] << 8) | pData[14];
+                    short securityByteEnd = (pData[19] << 8) | pData[18];
 
-                    _passesSecurityByteValidation = (securityByteStart == securityByteValidation) && (securityByteEnd == securityByteValidation);
-                    
-                    if(_passesSecurityByteValidation)
+                    _passesSecurityByteValidation = (securityByteStart == securityByteValidation) &&
+                                                    (securityByteEnd == securityByteValidation);
+
+                    if (_passesSecurityByteValidation)
                     {
-                        long heartbeatTime = (pData[13] << 24) |(pData[12] << 16) |(pData[11] << 8) | (pData[10]);
-                        
+                        long heartbeatTime = (pData[17] << 24) | (pData[16] << 16) | (pData[15] << 8) | (pData[14]);
+
                         previousHeartbeatTime = currentHeartbeatTime;
                         currentHeartbeatTime = heartbeatTime;
 
-                        if(currentHeartbeatTime > previousHeartbeatTime)
+                        if (currentHeartbeatTime > previousHeartbeatTime)
                         {
-                            throttleLeftDrive = (pData[3] << 8) | pData[2];
-                            throttleRightDrive = (pData[5] << 8) | (pData[4]);
-                            throttleWeapon0 = (pData[7] << 8) | pData[6];
-                            throttleWeapon1 = (pData[9] << 8) | (pData[8]);
+                            short possibleHeadingValue = (pData[3] << 8) | pData[2];
+                            if (possibleHeadingValue == HEADING_JOYSTICK_NOT_PRESSED)
+                            {
+                                headingJoystickEngaged = false;
+                                headingResetEngaged = false;
+                            }
+                            else if (possibleHeadingValue == HEADING_RESET)
+                            {
+                                headingJoystickEngaged = false;
+                                headingResetEngaged = true;
+                            }
+                            else
+                            {
+                                headingJoystickEngaged = true;
+                                headingResetEngaged = false;
+                                smartHeading = possibleHeadingValue;
+                            }
+
+
+                            smartThrottleDrive = (pData[5] << 8) | (pData[4]);
+
+                            throttleLeftDrive = (pData[7] << 8) | pData[6];
+                            throttleRightDrive = (pData[9] << 8) | (pData[8]);
+                            throttleWeapon0 = (pData[11] << 8) | pData[10];
+                            throttleWeapon1 = (pData[13] << 8) | (pData[12]);
                             _skippedHeartbeats = 0;
                             timeLastReceivedHeartbeatMillis = millis();
                             SafeSerialPrintLn(
-                                    "ctrl: " + String(securityByteStart) + " "+ String(throttleLeftDrive) + " " + String(throttleRightDrive) + " " + String(throttleWeapon0) + " " +
-                                    String(throttleWeapon1) + " " + String(currentHeartbeatTime) + " "+ String(securityByteEnd) + " ");
+                                    "ctrl: " + String(securityByteStart) + " " + String(possibleHeadingValue) + " " +
+                                    String(headingJoystickEngaged) + " " + String(headingResetEngaged) + " " +
+                                    String(smartThrottleDrive) + " " + String(throttleRightDrive) + " " +
+                                    String(throttleLeftDrive) + " " + String(throttleWeapon0) + " " +
+                                    String(throttleWeapon1) + " " + String(currentHeartbeatTime) + " " +
+                                    String(securityByteEnd) + " ");
                         }
 
-                        SafeSerialPrintLn(
-                                "INVALID, NO INCREASE HEARTBEAT. ctrl: " + String(securityByteStart) + " "+ String(throttleLeftDrive) + " " + String(throttleRightDrive) + " " + String(throttleWeapon0) + " " +
-                                String(throttleWeapon1) + " " + String(currentHeartbeatTime) + " "+ String(securityByteEnd) + " ");
+                        //SafeSerialPrintLn(
+                        //        "INVALID, NO INCREASE HEARTBEAT. ctrl: " + String(securityByteStart) + " "+ String(throttleLeftDrive) + " " + String(throttleRightDrive) + " " + String(throttleWeapon0) + " " +
+                        //        String(throttleWeapon1) + " " + String(currentHeartbeatTime) + " "+ String(securityByteEnd) + " ");
 
                         _skippedHeartbeats++;
                     }
                     else
                     {
-                        SafeSerialPrintLn(
-                                "INVALID, BAD SEC BYTE ctrl: " + String(securityByteStart) + " "+ String(throttleLeftDrive) + " " + String(throttleRightDrive) + " " + String(throttleWeapon0) + " " +
-                                String(throttleWeapon1) + " " + String(currentHeartbeatTime) + " "+ String(securityByteEnd) + " ");
+                        //SafeSerialPrintLn(
+                        //        "INVALID, BAD SEC BYTE ctrl: " + String(securityByteStart) + " "+ String(throttleLeftDrive) + " " + String(throttleRightDrive) + " " + String(throttleWeapon0) + " " +
+                        //        String(throttleWeapon1) + " " + String(currentHeartbeatTime) + " "+ String(securityByteEnd) + " ");
 
                         _skippedHeartbeats++;
                     }
-
-                    
 
 
                 }

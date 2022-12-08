@@ -14,10 +14,10 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-
 #include <NimBLEDevice.h>
 #include <Adafruit_H3LIS331.h>
 #include <ESP32_New_ISR_Servo.h>
+#include <quaternion.h>
 
 #define SERVICE_UUID "7ac5d0b9-a214-4c2b-b02a-7d300d756709"
 #define TELEMETRY_ALL_UUID "64dc361e-9e25-4ab9-aa07-4813b15f2c83"
@@ -97,6 +97,12 @@ float orientationI; // aka x
 float orientationJ; // aka y
 float orientationK; // aka z
 
+float orientationYaw;
+float orientationPitch;
+float orientationRoll;
+
+
+
 float BNOAccelerationX;
 float BNOAccelerationY;
 float BNOAccelerationZ;
@@ -169,6 +175,15 @@ int16_t throttleRightDrive = 90;
 int16_t throttleWeapon0 = 90;
 int16_t throttleWeapon1 = 90;
 
+int16_t smartThrottleDrive = 0;
+int16_t smartHeading = 0;
+bool headingJoystickEngaged = false;
+bool headingResetEngaged = false;
+int16_t smartHeadingOffset = 0;
+
+#define  HEADING_JOYSTICK_NOT_PRESSED 1000
+#define  HEADING_RESET 1001
+
 int16_t voltageReadingRaw;
 int16_t voltageReadingMv;
 
@@ -216,7 +231,7 @@ long previousHeartbeatTime;
 long currentHeartbeatTime;
 long timeLastReceivedHeartbeatMillis;
 #define TIMEOUT_HEARTBEAT_LOST 1000
-#define TIMEOUT_HEARTBEAT_LOST_REBOOT 5000
+#define TIMEOUT_HEARTBEAT_LOST_REBOOT 60000
 int _skippedHeartbeats = 0;
 
 int totalDiscardedBytes = 0;
