@@ -62,7 +62,7 @@ using namespace std;
  * Motors + Telemetry: 40,000uS (25Hz!!!)
  */
 
-std::string BLEName = "DCv2_SEEED_A";
+std::string BLEName = "DCv2_C";
 
 bool _displayEnabledAndFound = false;
 bool _imuEnabledAndFound = false;
@@ -84,51 +84,72 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55);
 
 sensors_event_t event; //I dont think this can be renamed either
 
+bool flipImu = true;
+
 Adafruit_H3LIS331 lis = Adafruit_H3LIS331();
 
 String _line0, _line1, _line2, _line3, _line4, _line5;
 
 static NimBLEServer *pServer;
 
-vector<uint8_t> TelemetryVector;
+vector<uint8_t> _telemetryVector;
 
-float orientationR; // aka real, or W
-float orientationI; // aka x
-float orientationJ; // aka y
-float orientationK; // aka z
+float _orientationR; // aka real, or W
+float _orientationI; // aka x
+float _orientationJ; // aka y
+float _orientationK; // aka z
 
-float orientationYaw;
-float orientationPitch;
-float orientationRoll;
+float _orientationYaw;
+float _orientationPitch;
+float _orientationRoll;
 
 
 
-float BNOAccelerationX;
-float BNOAccelerationY;
-float BNOAccelerationZ;
+float _bnoAccelerationX;
+float _bnoAccelerationY;
+float _bnoAccelerationZ;
 
-float LISAccelerationX;
-float LISAccelerationY;
-float LISAccelerationZ;
+float _lisAccelerationX;
+float _lisAccelerationY;
+float _lisAccelerationZ;
 
-int8_t BNOTemp = 0;
+int8_t _bnoTemp = 0;
 
-uint8_t BNOCalibrationSystem = 0;
-uint8_t BNOCalibrationGyro = 0;
-uint8_t BNOCalibrationAccelerometer = 0;
-uint8_t BNOCalibrationMagnetometer = 0;
+uint8_t _bnoCalibrationSystem = 0;
+uint8_t _bnoCalibrationGyro = 0;
+uint8_t _bnoCalibrationAccelerometer = 0;
+uint8_t _bnoCalibrationMagnetometer = 0;
 
-NimBLEAttValue ctrlAllMessage;
+
+int8_t _settingAngleTolerance;
+int _settingAngleToleranceMin = 0;
+int _settingAngleToleranceMax = 20;
+
+int8_t _settingTurningMultiplier;
+float _settingTurningMultiplierMin = 0.1;
+float _settingTurningMultiplierMax = 2.0;
+
+int8_t _settingAdditiveThrottleMultiplier;
+float _settingAdditiveThrottleMultiplierMin = 0.1;
+float _settingAdditiveThrottleMultiplierMax = 4.0;
+
+int _angleTolerance = 3;
+float _turningMultiplier = 0.3;
+float _additiveThrottleMultiplier = 0.9;
+
+bool _isInverted = false;
+
+NimBLEAttValue _controlMessage;
 
 #define PIN_VOLTAGE_READER A0
 // these pins are good: D1, D2, D3, D8, D9, D10
 // these pin work but will already be reserved:
 // untested since totally reserved: D4 D5
 // these pins will prob be reserved: D6 (uart), D7 (uart), D0/A1 (voltage reading)
-#define PIN_TEST_SERVO_L D8
-#define PIN_TEST_SERVO_R D3
+#define PIN_TEST_SERVO_L D3
+#define PIN_TEST_SERVO_R D10
 #define PIN_TEST_SERVO_W0 D9
-#define PIN_TEST_SERVO_W1 D10
+#define PIN_TEST_SERVO_W1 D8
 #define PIN_NUM_NEOPIXEL_OUTPUT D2
 
 // RGBLEDs
@@ -159,38 +180,52 @@ NimBLEAttValue ctrlAllMessage;
 
 #define HUE_PURPLE 213
 #define STARTING_BRIGHTNESS 40
-CRGB leds[TOTAL_LED];
-CRGB DC_White = CHSV(0, 0, MAX_BRIGHTNESS);
-CRGB DC_Grey = CHSV(0, 0, MAX_BRIGHTNESS/10);
 
-int wheelIndex = 2;
+#define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
 
-bool bluetoothClientExists = false;
-bool receivedHeartbeat = true; 
+CRGB _leds[TOTAL_LED];
+CRGB _colorWhite = CHSV(0, 0, MAX_BRIGHTNESS);
+CRGB _colorGrey = CHSV(0, 0, MAX_BRIGHTNESS / 10);
 
-int16_t safetyOffset = 0;
+int _wheelIndex = 2; // this is spinning pinwheel animation frame
 
-int16_t throttleLeftDrive = 90;
-int16_t throttleRightDrive = 90;
-int16_t throttleWeapon0 = 90;
-int16_t throttleWeapon1 = 90;
+bool _bluetoothClientExists = false;
+bool _receivedHeartbeatFromClient = true; 
 
-int16_t smartThrottleDrive = 0;
-int16_t smartHeading = 0;
-bool headingJoystickEngaged = false;
-bool headingResetEngaged = false;
-int16_t smartHeadingOffset = 0;
+int16_t _throttleLeftDrive = 90;
+int16_t _throttleRightDrive = 90;
+int16_t _throttleWeapon0 = 90;
+int16_t _throttleWeapon1 = 90;
+
+int16_t _smartThrottleDrive = 0;
+int16_t _smartHeadingTarget = 0;
+
+bool _headingResetEngaged = false;
+int16_t _smartHeadingOffset = 0;
+
+bool _buttonAPressed = false;
+bool _buttonBPressed = false;
+bool _buttonXPressed = false;
+bool _buttonYPressed = false;
+bool _buttonDUPressed = false;
+bool _buttonDDPressed = false;
+bool _buttonDLPressed = false;
+bool _buttonDRPressed = false;
+bool _buttonL1Pressed = false;
+bool _buttonR1Pressed = false;
+bool _joystickLEngaged = false;
+bool _joystickREngaged = false;
 
 #define  HEADING_JOYSTICK_NOT_PRESSED 1000
 #define  HEADING_RESET 1001
 
-int16_t voltageReadingRaw;
-int16_t voltageReadingMv;
+int16_t _voltageReadingRaw;
+int16_t _voltageReadingMillivolts;
 
-int servoLIndex = -1;
-int servoRIndex = -1;
-int servoW0Index = -1;
-int servoW1Index = -1;
+int _servoLIndex = -1;
+int _servoRIndex = -1;
+int _servoW0Index = -1;
+int _servoW1Index = -1;
 
 bool _interpretString = false;
 
@@ -199,42 +234,44 @@ bool _interpretString = false;
 #define MINIMUM_VOLTAGE_BATTERY_LOW 14000
 #define MINIMUM_VOLTAGE_BATTERY_DEAD 13200
 #define MINIMUM_VOLTAGE_USING_USB 6000
-long timingMeasurementBuffer[TIMING_MEASUREMENT_SAMPLES];
-int currentTimingMeasurementBufferIndex = 0;
-long lastCycleTime = 0;
+long _timingMeasurementBuffer[TIMING_MEASUREMENT_SAMPLES];
+int _currentTimingMeasurementBufferIndex = 0;
+long _lastCycleTime = 0;
 
 // copied from french blheli stuff https://www.rcgroups.com/forums/showthread.php?2555162-KISS-ESC-24A-Race-Edition-Flyduino-32bit-ESC
 
-static int16_t ESC_telemetrie[5]; // Temperature, Voltage, Current, used mAh, eRpM
+static int16_t _escTelemetryValues[5]; // Temperature, Voltage, Current, used mAh, eRpM
 
-static int16_t W0_Temperature = 0x00;
-static int16_t W0_Voltage = 0x00;
-static int16_t W0_Current = 0x00;
-static int16_t W0_UsedMah = 0x00;
-static int16_t W0_Rpm = 0x00;
+static int16_t _w0_Temperature = 0x00;
+static int16_t _w0_Voltage = 0x00;
+static int16_t _w0_Current = 0x00;
+static int16_t _w0_UsedMah = 0x00;
+static int16_t _w0_Rpm = 0x00;
 
 #define DELAY_BEFORE_TELEMETRY_COMES_BACK 20000
 #define TELEMETRY_READ_TIMEOUT 50000
 #define DELAY_BEFORE_STARTING_TELEMETRY 5000
-static uint16_t requestTelemetrie = 0;
-static uint16_t regularThrottleSignal = 1000;
-static uint8_t SerialBuf[10];
-static byte bnoCalibrationOffsets[22];
-static uint8_t receivedBytes = 0;
-long timeTelemetrySignalSentMicros;
 
-short securityByteValidation = 0x69;
+static uint8_t _serialBuffer[10];
+static byte _bnoCalibrationOffsets[22];
+static uint8_t _receivedBytes = 0;
+long _timeTelemetrySignalSentMicros;
+int _totalDiscardedBytes = 0;
 
+
+short _securityByteValidation = 0x69;
 bool _passesSecurityByteValidation = false;
 bool _lastHeartbeatValid = false;
-long previousHeartbeatTime;
-long currentHeartbeatTime;
-long timeLastReceivedHeartbeatMillis;
+long _previousHeartbeatTimeMillis;
+long _currentHeartbeatTimeMillis;
+long _timeLastReceivedHeartbeatMillis;
+
+long _lastLoopStartTime = 0;
+
 #define TIMEOUT_HEARTBEAT_LOST 1000
 #define TIMEOUT_HEARTBEAT_LOST_REBOOT 60000
 int _skippedHeartbeats = 0;
 
-int totalDiscardedBytes = 0;
 // setup
 
 void InitializeDisplay();
@@ -269,6 +306,9 @@ uint8_t get_crc8(uint8_t *Buf, uint8_t BufLen);
 uint8_t update_crc8(uint8_t crc, uint8_t crc_seed);
 void receiveTelemtrie();
 // outputs
+int WrapEulerAngle(int inputAngle);
+int GetAngleDeltaDegrees(int angle0, int angle1);
+int GetOffsetHeading();
 
 void SetMotorOutputs();
 

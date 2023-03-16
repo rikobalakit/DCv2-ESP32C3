@@ -7,7 +7,9 @@ void setup()
     Serial.begin(115200);
     Serial.setTimeout(1);
     SafeSerialPrintLn("Beginning serial");
+    delay(100);
     Wire.begin();
+    delay(100);
 #if LEDS_ENABLED
     InitializeLeds();
 #endif
@@ -45,6 +47,13 @@ void setup()
 
 void loop()
 {
+
+    while (millis() - _lastLoopStartTime < 40)
+    {
+        delay(4);
+    }
+
+    _lastLoopStartTime = millis();
     delayMicroseconds(10); // this is just in for safety...
 
     SetFailsafe();
@@ -55,19 +64,19 @@ void loop()
         {
             SetMotorOutputs();
 
-            throttleLeftDrive = 0;
-            throttleRightDrive = 0;
-            throttleWeapon0 = 0;
-            throttleWeapon1 = 0;
+            _throttleLeftDrive = 0;
+            _throttleRightDrive = 0;
+            _throttleWeapon0 = 0;
+            _throttleWeapon1 = 0;
 
             delay(1000);
 
             SetMotorOutputs();
 
-            throttleLeftDrive = 180;
-            throttleRightDrive = 180;
-            throttleWeapon0 = 180;
-            throttleWeapon1 = 180;
+            _throttleLeftDrive = 180;
+            _throttleRightDrive = 180;
+            _throttleWeapon0 = 180;
+            _throttleWeapon1 = 180;
 
             delay(1000);
         }
@@ -78,7 +87,7 @@ void loop()
     SetWeaponTelemetrySignal();
 #endif
 
-    while ((micros() - timeTelemetrySignalSentMicros) < DELAY_BEFORE_TELEMETRY_COMES_BACK)
+    while ((micros() - _timeTelemetrySignalSentMicros) < DELAY_BEFORE_TELEMETRY_COMES_BACK)
     {}
     {
         SetTimingData();
@@ -115,6 +124,10 @@ void loop()
 #if TELEMETRY_ENABLED
     GetWeaponTelemetry();
 #endif
+
+    SafeSerialPrintLn(" BNOX " + String(_bnoAccelerationX) + " LISX " + String(_lisAccelerationX) +
+                      ", BNOY " + String(_bnoAccelerationY) + " LISY " + String(_lisAccelerationY) +
+                      ", BNOZ " + String(_bnoAccelerationZ) + " LISZ " + String(_lisAccelerationZ));
 }
 
 // setup
@@ -141,6 +154,8 @@ void InitializeDisplay()
 
 void InitializeImu()
 {
+    delay(100);
+
 #if (USING_LEGACY_BNO055 != true)
     // This means initialize BNO085 instead
     if (!bno.begin_I2C())
@@ -148,6 +163,18 @@ void InitializeImu()
         DisplayText(1, "IMU Error", "Bad Init");
         _imuEnabledAndFound = false;
         SafeSerialPrintLn("IMU Error, BN0085");
+
+        for (int i = 0; i < 5; i++)
+        {
+            SetMainLeds(CRGB::Orange);
+            FastLED.show();
+            delay(50);
+            SetMainLeds(CRGB::Black);
+            FastLED.show();
+            delay(50);
+        }
+
+        esp_restart();
     }
     else
     {
@@ -188,12 +215,26 @@ void InitializeAccelerometer()
     {
         DisplayText(1, "Accel Error", "Bad Init");
         _accelerometerEnabledAndFound = false;
+        SafeSerialPrintLn("Accel Error, H3LIS331");
+
+        for (int i = 0; i < 5; i++)
+        {
+            SetMainLeds(CRGB::Teal);
+            FastLED.show();
+            delay(50);
+            SetMainLeds(CRGB::Black);
+            FastLED.show();
+            delay(50);
+        }
+
+        esp_restart();
     }
     else
     {
         DisplayText(0.25, "Accel Success");
         lis.setRange(H3LIS331_RANGE_400_G);
         _accelerometerEnabledAndFound = true;
+        SafeSerialPrintLn("Accel Success");
     }
 }
 
@@ -201,7 +242,7 @@ void InitializeLeds()
 {
     pinMode(PIN_NUM_NEOPIXEL_OUTPUT, OUTPUT);
     delay(1);
-    FastLED.addLeds<NEOPIXEL, PIN_NUM_NEOPIXEL_OUTPUT>(leds, TOTAL_LED);
+    FastLED.addLeds<NEOPIXEL, PIN_NUM_NEOPIXEL_OUTPUT>(_leds, TOTAL_LED);
     FastLED.show();
 }
 
@@ -270,12 +311,12 @@ void InitializeMotors()
 
     ESP32_ISR_Servos.disableAll();
 
-    servoLIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_L, 1000, 2000);
-    servoRIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_R, 1000, 2000);
-    servoW0Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W0, 0, 2000);
-    servoW1Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W1, 1000, 2000);
+    _servoLIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_L, 1000, 2000);
+    _servoRIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_R, 1000, 2000);
+    _servoW0Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W0, 0, 2000);
+    _servoW1Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W1, 1000, 2000);
 
-    if (servoLIndex == -1)
+    if (_servoLIndex == -1)
     {
         DisplayText(1, "Failure L Servo");
     }
@@ -284,7 +325,7 @@ void InitializeMotors()
         DisplayText(0.25, "Success L Servo");
     }
 
-    if (servoRIndex == -1)
+    if (_servoRIndex == -1)
     {
         DisplayText(1, "Failure R Servo");
     }
@@ -293,7 +334,7 @@ void InitializeMotors()
         DisplayText(0.25, "Success R Servo");
     }
 
-    if (servoW0Index == -1)
+    if (_servoW0Index == -1)
     {
         DisplayText(1, "Failure W0 Servo");
     }
@@ -302,7 +343,7 @@ void InitializeMotors()
         DisplayText(0.25, "Success W0 Servo");
     }
 
-    if (servoW1Index == -1)
+    if (_servoW1Index == -1)
     {
         DisplayText(1, "Failure W1 Servo");
     }
@@ -320,6 +361,11 @@ void InitializeVoltageReader()
 }
 
 // inputs
+
+int GetOffsetHeading()
+{
+    return _orientationYaw + _smartHeadingOffset;
+}
 
 void GetIMUData()
 {
@@ -344,76 +390,100 @@ void GetIMUData()
         switch (sensorValues.sensorId)
         {
             case SH2_ACCELEROMETER:
-                BNOAccelerationX = sensorValues.un.accelerometer.x;
-                BNOAccelerationY = sensorValues.un.accelerometer.y;
-                BNOAccelerationZ = sensorValues.un.accelerometer.z;
-                BNOCalibrationAccelerometer = sensorValues.status && 0x00000011;
+                _bnoAccelerationX = -sensorValues.un.accelerometer.x;
+                _bnoAccelerationY = sensorValues.un.accelerometer.y;
+                _bnoAccelerationZ = sensorValues.un.accelerometer.z;
+                _bnoCalibrationAccelerometer = sensorValues.status && 0x00000011;
                 accelReports++;
+
+                if (_bnoAccelerationZ < 0)
+                {
+                    // is right side up
+                    _isInverted = false;
+                }
+                else
+                {
+                    // is upside down
+                    _isInverted = true;
+                }
+
+                //SafeSerialPrintLn("value accel z: " + String(_bnoAccelerationZ) + ", is upside down? " + String(_isInverted));
+
                 break;
             case SH2_GAME_ROTATION_VECTOR:
-                orientationR = sensorValues.un.gameRotationVector.real;
-                orientationI = sensorValues.un.gameRotationVector.i;
-                orientationJ = sensorValues.un.gameRotationVector.j;
-                orientationK = sensorValues.un.gameRotationVector.k;
+                _orientationR = sensorValues.un.gameRotationVector.real;
+                _orientationI = sensorValues.un.gameRotationVector.i;
+                _orientationJ = sensorValues.un.gameRotationVector.j;
+                _orientationK = sensorValues.un.gameRotationVector.k;
 
-                imu::Quaternion currentOrientation(orientationR, orientationI, orientationJ, orientationK);
+                imu::Quaternion currentOrientation(_orientationR, _orientationI, _orientationJ, _orientationK);
 
                 auto orientationEuler = currentOrientation.toEuler();
 
                 //SafeSerialPrintLn(
-                //        "euler angles: x:" + String(orientationEuler.x() * 57.2958) + " y: " + String(orientationEuler.y()* 57.2958) +
-                //        " z: " + String(orientationEuler.z()* 57.2958));
+                //"euler angles: x:" + String(orientationEuler.x() * 57.2958) + " y: " + String(orientationEuler.y()* 57.2958) +
+                //       " z: " + String(orientationEuler.z()* 57.2958));
 
-                orientationYaw = orientationEuler.x() * -57.2958;
-                orientationPitch = orientationEuler.y()* 57.2958;
-                orientationRoll = orientationEuler.z()* -57.2958;
-                
-                BNOCalibrationGyro = sensorValues.status && 0x00000011;
-                BNOCalibrationMagnetometer = sensorValues.status && 0x00000011;
-                orientationReports++;
-                
-                if(headingResetEngaged)
+                _orientationYaw = orientationEuler.x() * -57.2958;
+
+                _orientationPitch = orientationEuler.z() * -57.2958;
+                _orientationRoll = orientationEuler.y() * 57.2958;
+
+                if (flipImu)
                 {
-                    smartHeadingOffset = -orientationYaw;
+                    _orientationYaw = orientationEuler.x() * -57.2958 + 180;
+                    _orientationPitch = orientationEuler.z() * 57.2958 + 180;
                 }
 
-                SafeSerialPrintLn("heading: " + String(orientationYaw) + ", offset: " + String(smartHeadingOffset) + ", new heading:" + String(orientationYaw+smartHeadingOffset));
-                
+                SafeSerialPrintLn(
+                        "euler angles: pitch:" + String(_orientationPitch) + " yaw: " + String(_orientationYaw) +
+                        " roll: " + String(_orientationRoll));
+
+                _bnoCalibrationGyro = sensorValues.status && 0x00000011;
+                _bnoCalibrationMagnetometer = sensorValues.status && 0x00000011;
+                orientationReports++;
+
+                if (_headingResetEngaged)
+                {
+                    _smartHeadingOffset = -_orientationYaw;
+                }
+
+
                 break;
                 /*
             case SH2_TEMPERATURE:
-                BNOTemp = (int8_t) sensorValues.un.temperature.value;
+                _bnoTemp = (int8_t) sensorValues.un.temperature.value;
                 tempReports++;
                  */
         }
     }
     long microsDelta = micros() - microsAtStart;
 
-    BNOCalibrationSystem = 3;
-   SafeSerialPrintLn("Read " + String(reportsRead) + " reports from IMU in " + String(microsDelta) + " us. Temp:" +
-                     String(tempReports) + ", Accel: " + String(accelReports) + ", Gyro: " +
-                     String(orientationReports));
+    _bnoCalibrationSystem = 3;
+    //SafeSerialPrintLn("Read " + String(reportsRead) + " reports from IMU in " + String(microsDelta) + " us. Temp:" +
+    //                  String(tempReports) + ", Accel: " + String(accelReports) + ", Gyro: " +
+    //                  String(orientationReports));
 
 #else
     bno.getEvent(&event);
 
     imu::Quaternion quat = bno.getQuat();
 
-    orientationR = quat.w();
-    orientationI = quat.x();
-    orientationJ = quat.y();
-    orientationK = quat.z();
+    _orientationR = quat.w();
+    _orientationI = quat.x();
+    _orientationJ = quat.y();
+    _orientationK = quat.z();
 
-    BNOAccelerationX = event.acceleration.x;
-    BNOAccelerationY = event.acceleration.y;
-    BNOAccelerationZ = event.acceleration.z;
+    _bnoAccelerationX = event.acceleration.x;
+    _bnoAccelerationY = event.acceleration.y;
+    _bnoAccelerationZ = event.acceleration.z;
 
-    BNOTemp = bno.getTemp();
+    _bnoTemp = bno.getTemp();
 
-    bno.getCalibration(&BNOCalibrationSystem, &BNOCalibrationGyro, &BNOCalibrationAccelerometer, &BNOCalibrationMagnetometer);
+    bno.getCalibration(&_bnoCalibrationSystem, &_bnoCalibrationGyro, &_bnoCalibrationAccelerometer, &_bnoCalibrationMagnetometer);
 
     
-    bno.getSensorOffsets(bnoCalibrationOffsets);
+    bno.getSensorOffsets(_bnoCalibrationOffsets);
 
 #endif
 
@@ -428,16 +498,16 @@ void GetAccelerometerData()
 
     lis.getEvent(&event);
 
-    LISAccelerationX = event.acceleration.x;
-    LISAccelerationY = event.acceleration.y;
-    LISAccelerationZ = event.acceleration.z;
+    _lisAccelerationX = -event.acceleration.x;
+    _lisAccelerationY = event.acceleration.y;
+    _lisAccelerationZ = event.acceleration.z;
 }
 
 void GetVoltageData()
 {
-    voltageReadingRaw = analogRead(PIN_VOLTAGE_READER);
+    _voltageReadingRaw = analogRead(PIN_VOLTAGE_READER);
     // batt is 15.38, v after divider is 1.392, raw is
-    voltageReadingMv = (int16_t) ((float) (voltageReadingRaw) * (7.907455));
+    _voltageReadingMillivolts = (int16_t) ((float) (_voltageReadingRaw) * (7.907455));
 }
 
 void InitializeEscTelemetry()
@@ -454,64 +524,86 @@ void SetWeaponTelemetrySignal()
 
     ulong telemetryRequestWidth = 50;
 
-    ESP32_ISR_Servos.setPulseWidth(servoW0Index, telemetryRequestWidth);
-    timeTelemetrySignalSentMicros = micros();
+    ESP32_ISR_Servos.setPulseWidth(_servoW0Index, telemetryRequestWidth);
+    _timeTelemetrySignalSentMicros = micros();
 
     delayMicroseconds(REFRESH_INTERVAL);
+}
+
+int WrapEulerAngle(int inputAngle)
+{
+    while (inputAngle > 180)
+    {
+        inputAngle -= 360;
+    }
+
+    while (inputAngle < -180)
+    {
+        inputAngle += 360;
+    }
+    return inputAngle;
+}
+
+int GetAngleDeltaDegrees(int currentAngle, int targetAngle)
+{
+    auto delta = (targetAngle - currentAngle + 360) % 360 - 360;
+
+
+    return WrapEulerAngle(delta);
 }
 
 void GetWeaponTelemetry()
 {
 
-    receivedBytes = 0;
+    _receivedBytes = 0;
 
     //read in telemetry from serial
     ulong microsAtStart = micros();
 
-    while ((micros() - timeTelemetrySignalSentMicros < (TELEMETRY_READ_TIMEOUT)) && receivedBytes < 10)
+    while ((micros() - _timeTelemetrySignalSentMicros < (TELEMETRY_READ_TIMEOUT)) && _receivedBytes < 10)
     {
         if (Serial0.available())
         {
-            SerialBuf[receivedBytes] = Serial0.read();
-            receivedBytes++;
+            _serialBuffer[_receivedBytes] = Serial0.read();
+            _receivedBytes++;
         }
 
     }
 
     ulong microsAfterReceiveSignal = micros();
 
-    if (receivedBytes >= 9)
+    if (_receivedBytes >= 9)
     {
-        uint8_t crc8 = get_crc8(SerialBuf, 9); // get the 8 bit CRC
+        uint8_t crc8 = get_crc8(_serialBuffer, 9); // get the 8 bit CRC
 
-        if (crc8 != SerialBuf[9])
+        if (crc8 != _serialBuffer[9])
         {
             //DisplayText(0.1f, "failed read", "corrupt data");
             _line5 = "corrupt read";
         }
         else
         {
-            ESC_telemetrie[0] = SerialBuf[0]; // temperature
-            ESC_telemetrie[1] = (SerialBuf[1] << 8) | SerialBuf[2]; // voltage
-            ESC_telemetrie[2] = (SerialBuf[3] << 8) | SerialBuf[4]; // Current
-            ESC_telemetrie[3] = (SerialBuf[5] << 8) | SerialBuf[6]; // used mA/h
-            ESC_telemetrie[4] = (SerialBuf[7] << 8) | SerialBuf[8]; // eRpM *100
+            _escTelemetryValues[0] = _serialBuffer[0]; // temperature
+            _escTelemetryValues[1] = (_serialBuffer[1] << 8) | _serialBuffer[2]; // voltage
+            _escTelemetryValues[2] = (_serialBuffer[3] << 8) | _serialBuffer[4]; // Current
+            _escTelemetryValues[3] = (_serialBuffer[5] << 8) | _serialBuffer[6]; // used mA/h
+            _escTelemetryValues[4] = (_serialBuffer[7] << 8) | _serialBuffer[8]; // eRpM *100
 
-            W0_Temperature = (float) ESC_telemetrie[0];
-            W0_Voltage = (float) ESC_telemetrie[1] / 100;
-            W0_Current = (float) ESC_telemetrie[2] / 100;
-            W0_UsedMah = (float) ESC_telemetrie[3];
-            W0_Rpm = (float) ESC_telemetrie[4] * 1000;
+            _w0_Temperature = (float) _escTelemetryValues[0];
+            _w0_Voltage = (float) _escTelemetryValues[1] / 100;
+            _w0_Current = (float) _escTelemetryValues[2] / 100;
+            _w0_UsedMah = (float) _escTelemetryValues[3];
+            _w0_Rpm = (float) _escTelemetryValues[4] * 1000;
 
-            //DisplayText(0.1f, "temp: " + String(ESC_telemetrie[0]), "used mA/h: " + String(ESC_telemetrie[3]));
-            _line5 = "T:" + String(ESC_telemetrie[0]) + "C, RPM:" + String(ESC_telemetrie[4]);
+            //DisplayText(0.1f, "temp: " + String(_escTelemetryValues[0]), "used mA/h: " + String(_escTelemetryValues[3]));
+            _line5 = "T:" + String(_escTelemetryValues[0]) + "C, RPM:" + String(_escTelemetryValues[4]);
 
         }
     }
     else
     {
         //DisplayText(0.1f, "failed read", "not enough bytes");
-        _line5 = "no read, bytes: " + String(receivedBytes);
+        _line5 = "no read, bytes: " + String(_receivedBytes);
     }
 
     ulong microsAfterDecodeResponse = micros();
@@ -524,7 +616,7 @@ void GetWeaponTelemetry()
     {
         Serial0.read();
         discardedBytes++;
-        totalDiscardedBytes++;
+        _totalDiscardedBytes++;
     }
 
     //microsAtStart, microsAfterSendSignal, microsAfterReceiveSignal, microsAfterDecodeResponse, microsAtEnd
@@ -539,17 +631,17 @@ void GetWeaponTelemetry()
 
     //Serial.println("Requested Telemetrie");
     //Serial.print("Temperature (C): ");
-    //Serial.println(ESC_telemetrie[0]);
+    //Serial.println(_escTelemetryValues[0]);
     //Serial.print("Voltage: (V) /100: ");
-    //Serial.println(ESC_telemetrie[1]);
+    //Serial.println(_escTelemetryValues[1]);
     //Serial.print("Current (A) /100: ");
-    //Serial.println(ESC_telemetrie[2]);
+    //Serial.println(_escTelemetryValues[2]);
     //Serial.print("used mA/h: ");
-    //Serial.println(ESC_telemetrie[3]);
+    //Serial.println(_escTelemetryValues[3]);
     //Serial.print("eRpM *100: ");
-    //Serial.println(ESC_telemetrie[4]);
+    //Serial.println(_escTelemetryValues[4]);
 
-    //SafeSerialPrintLn("Total: " + String((microsAtEnd-microsAtStart)) + "us, Get reply: "  + String((microsAfterReceiveSignal-timeTelemetrySignalSentMicros)) + "us, " + _line5 + ", discarded " + String(discardedBytes) + " bytes, total discarded "+ String(totalDiscardedBytes) + " bytes");
+    //SafeSerialPrintLn("Total: " + String((microsAtEnd-microsAtStart)) + "us, Get reply: "  + String((microsAfterReceiveSignal-_timeTelemetrySignalSentMicros)) + "us, " + _line5 + ", discarded " + String(discardedBytes) + " bytes, total discarded "+ String(_totalDiscardedBytes) + " bytes");
 
 }
 
@@ -580,7 +672,7 @@ long GetAverageCyclePeriodMilliseconds()
 
     for (int i = 0; i < TIMING_MEASUREMENT_SAMPLES; i++)
     {
-        counter += timingMeasurementBuffer[i];
+        counter += _timingMeasurementBuffer[i];
     }
 
     return counter / TIMING_MEASUREMENT_SAMPLES;
@@ -588,16 +680,16 @@ long GetAverageCyclePeriodMilliseconds()
 
 void SetTimingData()
 {
-    timingMeasurementBuffer[currentTimingMeasurementBufferIndex] = micros() - lastCycleTime;
+    _timingMeasurementBuffer[_currentTimingMeasurementBufferIndex] = micros() - _lastCycleTime;
 
     // iterate or reset
-    currentTimingMeasurementBufferIndex++;
-    if (currentTimingMeasurementBufferIndex >= TIMING_MEASUREMENT_SAMPLES)
+    _currentTimingMeasurementBufferIndex++;
+    if (_currentTimingMeasurementBufferIndex >= TIMING_MEASUREMENT_SAMPLES)
     {
-        currentTimingMeasurementBufferIndex = 0;
+        _currentTimingMeasurementBufferIndex = 0;
     }
 
-    lastCycleTime = micros();
+    _lastCycleTime = micros();
     long averageCyclePeriod = GetAverageCyclePeriodMilliseconds();
 
     String updateRateText =
@@ -609,14 +701,112 @@ void SetTimingData()
     //SafeSerialPrintLn(updateRateText);
 }
 
+int ClampInt(int input, int min, int max)
+{
+    if (input > max)
+    {
+        return max;
+    }
+    if (input < min)
+    {
+        return min;
+    }
+
+    return input;
+}
+
+int ClampServoAngle(int input)
+{
+    return ClampInt(input, 0, 180);
+}
+
+float MapFloatFromByte(int8_t input, float min, float max)
+{
+    float fraction = ((float) input + (float) 128) / (float) 256;
+    float delta = max - min;
+    return (float) (delta * fraction + min);
+}
+
+int MapIntFromByte(int8_t input, int min, int max)
+{
+    float fraction = ((float) input + (float) 128) / (float) 256;
+    float delta = max - min;
+    return (int) (delta * fraction + min);
+}
+
 void SetMotorOutputs()
 {
+    _headingResetEngaged = _buttonYPressed;
+
+    int _headingOffset = 0;
+    if(_isInverted)
+    {
+        _headingOffset = 180;
+    }
+    auto angleDelta = GetAngleDeltaDegrees(GetOffsetHeading(), _smartHeadingTarget + _headingOffset);
+    int smartThrottleLeftDrive = 90;
+    int smartThrottleRightDrive = 90;
+    int throttleToAdd = 20;
+
+    //SafeSerialPrintLn("currentheading: " + String(_orientationYaw) + ", offset: " + String(_smartHeadingOffset) +
+    //                  ", target heading: " + String(_smartHeadingTarget) +
+    //                  ", new heading:" + String(GetOffsetHeading()) + ", Delta: " +
+    //                  String(angleDelta));
+
+    throttleToAdd = abs(5 + (int) ((float) angleDelta * _turningMultiplier));
+
+    float invertedMultiplier = 1;
+    if (_isInverted)
+    {
+        invertedMultiplier = -1;
+    }
+
+    if (angleDelta > _angleTolerance && _joystickREngaged)
+    {
+        // turn right
+        smartThrottleLeftDrive = 90 + throttleToAdd;
+        smartThrottleRightDrive = 90 - throttleToAdd;
+
+        smartThrottleLeftDrive = ClampServoAngle(smartThrottleLeftDrive);
+        smartThrottleRightDrive = ClampServoAngle(smartThrottleRightDrive);
+
+        //SafeSerialPrintLn("Throttles: " + String(smartThrottleLeftDrive) + " " + String(smartThrottleRightDrive) + "(Right)");
+    }
+    else if (angleDelta < -_angleTolerance && _joystickREngaged)
+    {
+        // turn left
+        smartThrottleLeftDrive = 90 - throttleToAdd;
+        smartThrottleRightDrive = 90 + throttleToAdd;
+
+        smartThrottleLeftDrive = ClampServoAngle(smartThrottleLeftDrive);
+        smartThrottleRightDrive = ClampServoAngle(smartThrottleRightDrive);
+
+        //SafeSerialPrintLn("Throttles: " + String(smartThrottleLeftDrive) + " " + String(smartThrottleRightDrive) + "(Left)");
+    }
+    else
+    {
+        // neutral
+        smartThrottleLeftDrive = 90;
+        smartThrottleRightDrive = 90;
+
+        //SafeSerialPrintLn("Throttles: " + String(smartThrottleLeftDrive) + " " + String(smartThrottleRightDrive) + "(Neutral)");
+    }
+
+    smartThrottleLeftDrive += _smartThrottleDrive * _additiveThrottleMultiplier * invertedMultiplier;
+    smartThrottleRightDrive += _smartThrottleDrive * _additiveThrottleMultiplier * invertedMultiplier;
+
+    smartThrottleLeftDrive = ClampServoAngle(smartThrottleLeftDrive);
+    smartThrottleRightDrive = ClampServoAngle(smartThrottleRightDrive);
+
+
     /*
-    SetMotorOutput(_testServoL, throttleLeftDrive);
-    SetMotorOutput(_testServoR, throttleRightDrive);
+    SetMotorOutput(_testServoL, _throttleLeftDrive);
+    SetMotorOutput(_testServoR, _throttleRightDrive);
      */
 
-    if ((bluetoothClientExists && receivedHeartbeat) || _pwmTimingDebugEnabled)
+
+
+    if ((_bluetoothClientExists && _receivedHeartbeatFromClient) || _pwmTimingDebugEnabled)
     {
         ESP32_ISR_Servos.enableAll();
     }
@@ -626,22 +816,22 @@ void SetMotorOutputs()
     }
 
 
-    if (servoLIndex != -1)
+    if (_servoLIndex != -1)
     {
-        ESP32_ISR_Servos.setPosition(servoLIndex, throttleLeftDrive);
+        ESP32_ISR_Servos.setPosition(_servoLIndex, smartThrottleLeftDrive);
     }
-    if (servoRIndex != -1)
+    if (_servoRIndex != -1)
     {
-        ESP32_ISR_Servos.setPosition(servoRIndex, throttleRightDrive);
+        ESP32_ISR_Servos.setPosition(_servoRIndex, smartThrottleRightDrive);
     }
-    if (servoW1Index != -1)
+    if (_servoW1Index != -1)
     {
-        ESP32_ISR_Servos.setPosition(servoW1Index, throttleWeapon1);
+        ESP32_ISR_Servos.setPosition(_servoW1Index, _throttleWeapon1);
     }
-    if (servoW0Index != -1)
+    if (_servoW0Index != -1)
     {
-        ulong controlPosition = 1000 + throttleWeapon0 * (2000 / 180);
-        ESP32_ISR_Servos.setPulseWidth(servoW0Index, controlPosition);
+        ulong controlPosition = 1000 + _throttleWeapon0 * (2000 / 180);
+        ESP32_ISR_Servos.setPulseWidth(_servoW0Index, controlPosition);
     }
     delayMicroseconds(REFRESH_INTERVAL);
 }
@@ -655,17 +845,17 @@ void SetLeds()
     /*
     if (GetFlashValue(500))
     {
-        SetMainLeds(DC_White);
+        SetMainLeds(_colorWhite);
     }
     else
     {
-        SetMainLeds(DC_Grey);
+        SetMainLeds(_colorGrey);
     }
      */
 
     if (_roundTripTimingDebugEnabled)
     {
-        if (throttleLeftDrive > 90)
+        if (_throttleLeftDrive > 90)
         {
             SetMainLeds(CRGB::White);
         }
@@ -677,21 +867,21 @@ void SetLeds()
         return;
     }
 
-    if ((bluetoothClientExists && receivedHeartbeat) || GetFlashValue(500, false))
+    if ((_bluetoothClientExists && _receivedHeartbeatFromClient) || GetFlashValue(500, false))
     {
-        if (voltageReadingMv > MINIMUM_VOLTAGE_BATTERY_FULL)
+        if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_FULL)
         {
             SetMainLeds(CRGB::Green);
         }
-        else if (voltageReadingMv > MINIMUM_VOLTAGE_BATTERY_LOW)
+        else if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_LOW)
         {
             SetMainLeds(CRGB::Yellow);
         }
-        else if (voltageReadingMv > MINIMUM_VOLTAGE_BATTERY_DEAD)
+        else if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_DEAD)
         {
             SetMainLeds(CRGB::Red);
         }
-        else if (voltageReadingMv > MINIMUM_VOLTAGE_USING_USB)
+        else if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_USING_USB)
         {
             if (GetFlashValue(250, true))
             {
@@ -723,20 +913,20 @@ void SetLeds()
 
     for (int i = 2; i < 8; i++)
     {
-        if (i == wheelIndex)
+        if (i == _wheelIndex)
         {
-            leds[i] = DC_White;
+            _leds[i] = _colorWhite;
         }
         else
         {
-            leds[i] = CRGB::Black;
+            _leds[i] = CRGB::Black;
         }
     }
 
-    wheelIndex++;
-    if (wheelIndex == 8)
+    _wheelIndex++;
+    if (_wheelIndex == 8)
     {
-        wheelIndex = 2;
+        _wheelIndex = 2;
     }
 
     FastLED.show();
@@ -744,8 +934,8 @@ void SetLeds()
 
 void SetMainLeds(CRGB color)
 {
-    leds[LED_BOARD] = color;
-    leds[LED_CENTER] = color;
+    _leds[LED_BOARD] = color;
+    _leds[LED_CENTER] = color;
 }
 
 bool GetFlashValue(int periodMilliseconds, bool startsTrue)
@@ -763,44 +953,44 @@ bool GetFlashValue(int periodMilliseconds, bool startsTrue)
 
 void SetFailsafe()
 {
-    if (millis() - timeLastReceivedHeartbeatMillis > TIMEOUT_HEARTBEAT_LOST)
+    if (millis() - _timeLastReceivedHeartbeatMillis > TIMEOUT_HEARTBEAT_LOST)
     {
-        receivedHeartbeat = false;
+        _receivedHeartbeatFromClient = false;
 
-        if (millis() - timeLastReceivedHeartbeatMillis > TIMEOUT_HEARTBEAT_LOST_REBOOT)
+        if (millis() - _timeLastReceivedHeartbeatMillis > TIMEOUT_HEARTBEAT_LOST_REBOOT)
         {
             esp_restart();
         }
     }
     else
     {
-        receivedHeartbeat = true;
+        _receivedHeartbeatFromClient = true;
     }
 }
 
 void PushFloatToTelemetryVector(float floatValue)
 {
     unsigned char const *p = reinterpret_cast<unsigned char const *>(&floatValue);
-    TelemetryVector.push_back(p[0]);
-    TelemetryVector.push_back(p[1]);
-    TelemetryVector.push_back(p[2]);
-    TelemetryVector.push_back(p[3]);
+    _telemetryVector.push_back(p[0]);
+    _telemetryVector.push_back(p[1]);
+    _telemetryVector.push_back(p[2]);
+    _telemetryVector.push_back(p[3]);
 }
 
 void PushIntSixteenToTelemetryVector(int16_t intValue)
 {
     unsigned char const *p = reinterpret_cast<unsigned char const *>(&intValue);
-    TelemetryVector.push_back(p[0]);
-    TelemetryVector.push_back(p[1]);
+    _telemetryVector.push_back(p[0]);
+    _telemetryVector.push_back(p[1]);
 }
 
 void GetAndSetBluetoothData()
 {
-    TelemetryVector.clear();
+    _telemetryVector.clear();
 
     if (pServer->getConnectedCount())
     {
-        bluetoothClientExists = true;
+        _bluetoothClientExists = true;
 
         NimBLEService *pSvc = pServer->getServiceByUUID(SERVICE_UUID);
         if (pSvc)
@@ -808,49 +998,49 @@ void GetAndSetBluetoothData()
             NimBLECharacteristic *pChrAll = pSvc->getCharacteristic(TELEMETRY_ALL_UUID);
             if (pChrAll)
             {
-                PushIntSixteenToTelemetryVector(voltageReadingMv);
+                PushIntSixteenToTelemetryVector(_voltageReadingMillivolts);
 
-                PushFloatToTelemetryVector(orientationR);
-                PushFloatToTelemetryVector(orientationI);
-                PushFloatToTelemetryVector(orientationJ);
-                PushFloatToTelemetryVector(orientationK);
+                PushFloatToTelemetryVector(_orientationR);
+                PushFloatToTelemetryVector(_orientationI);
+                PushFloatToTelemetryVector(_orientationJ);
+                PushFloatToTelemetryVector(_orientationK);
 
-                PushIntSixteenToTelemetryVector(BNOAccelerationX * 1000);
-                PushIntSixteenToTelemetryVector(BNOAccelerationY * 1000);
-                PushIntSixteenToTelemetryVector(BNOAccelerationZ * 1000);
+                PushIntSixteenToTelemetryVector(_bnoAccelerationX * 1000);
+                PushIntSixteenToTelemetryVector(_bnoAccelerationY * 1000);
+                PushIntSixteenToTelemetryVector(_bnoAccelerationZ * 1000);
 
-                PushIntSixteenToTelemetryVector(LISAccelerationX);
-                PushIntSixteenToTelemetryVector(LISAccelerationY);
-                PushIntSixteenToTelemetryVector(LISAccelerationZ);
+                PushIntSixteenToTelemetryVector(_lisAccelerationX);
+                PushIntSixteenToTelemetryVector(_lisAccelerationY);
+                PushIntSixteenToTelemetryVector(_lisAccelerationZ);
 
-                PushIntSixteenToTelemetryVector(W0_Temperature);
-                PushIntSixteenToTelemetryVector(W0_Voltage);
-                PushIntSixteenToTelemetryVector(W0_Current);
-                PushIntSixteenToTelemetryVector(W0_UsedMah);
-                PushIntSixteenToTelemetryVector(W0_Rpm);
+                PushIntSixteenToTelemetryVector(_w0_Temperature);
+                PushIntSixteenToTelemetryVector(_w0_Voltage);
+                PushIntSixteenToTelemetryVector(_w0_Current);
+                PushIntSixteenToTelemetryVector(_w0_UsedMah);
+                PushIntSixteenToTelemetryVector(_w0_Rpm);
 
-                TelemetryVector.push_back(BNOTemp);
+                _telemetryVector.push_back(_bnoTemp);
 
-                TelemetryVector.push_back(BNOCalibrationSystem);
-                TelemetryVector.push_back(BNOCalibrationGyro);
-                TelemetryVector.push_back(BNOCalibrationAccelerometer);
-                TelemetryVector.push_back(BNOCalibrationMagnetometer);
+                _telemetryVector.push_back(_bnoCalibrationSystem);
+                _telemetryVector.push_back(_bnoCalibrationGyro);
+                _telemetryVector.push_back(_bnoCalibrationAccelerometer);
+                _telemetryVector.push_back(_bnoCalibrationMagnetometer);
 
-                PushIntSixteenToTelemetryVector(smartHeadingOffset);
+                PushIntSixteenToTelemetryVector(_smartHeadingOffset);
 
 
-                pChrAll->setValue(TelemetryVector);
+                pChrAll->setValue(_telemetryVector);
                 pChrAll->notify(true);
             }
 
             NimBLECharacteristic *pCtrlL = pSvc->getCharacteristic(CTRL_ALL_UUID);
             if (pCtrlL)
             {
-                ctrlAllMessage = pCtrlL->getValue();
+                _controlMessage = pCtrlL->getValue();
 
-                if (ctrlAllMessage != "PEE")
+                if (_controlMessage != "PEE")
                 {
-                    uint8_t *pData = (uint8_t *) ctrlAllMessage.data();
+                    uint8_t *pData = (uint8_t *) _controlMessage.data();
                     /*
                     byte ctrlByteArray[8];
                     ctrlByteArray[0] =  ctrlAsInt &   0x00000000000000ff;
@@ -864,67 +1054,95 @@ void GetAndSetBluetoothData()
                      */
 
                     short securityByteStart = (pData[1] << 8) | pData[0];
-                    short securityByteEnd = (pData[19] << 8) | pData[18];
+                    short securityByteEnd = (pData[37] << 8) | pData[36];
 
-                    _passesSecurityByteValidation = (securityByteStart == securityByteValidation) &&
-                                                    (securityByteEnd == securityByteValidation);
+                    _passesSecurityByteValidation = (securityByteStart == _securityByteValidation) &&
+                                                    (securityByteEnd == _securityByteValidation);
 
                     if (_passesSecurityByteValidation)
                     {
-                        long heartbeatTime = (pData[17] << 24) | (pData[16] << 16) | (pData[15] << 8) | (pData[14]);
+                        long heartbeatTime = (pData[35] << 24) | (pData[34] << 16) | (pData[33] << 8) | (pData[32]);
 
-                        previousHeartbeatTime = currentHeartbeatTime;
-                        currentHeartbeatTime = heartbeatTime;
+                        _previousHeartbeatTimeMillis = _currentHeartbeatTimeMillis;
+                        _currentHeartbeatTimeMillis = heartbeatTime;
 
-                        if (currentHeartbeatTime > previousHeartbeatTime)
+                        if (_currentHeartbeatTimeMillis > _previousHeartbeatTimeMillis)
                         {
-                            short possibleHeadingValue = (pData[3] << 8) | pData[2];
-                            if (possibleHeadingValue == HEADING_JOYSTICK_NOT_PRESSED)
+                            short buttonValues = (pData[3] << 8) | pData[2];
+
+                            _buttonAPressed = CHECK_BIT(buttonValues, 15);
+                            _buttonBPressed = CHECK_BIT(buttonValues, 14);
+                            _buttonXPressed = CHECK_BIT(buttonValues, 13);
+                            _buttonYPressed = CHECK_BIT(buttonValues, 12);
+                            _buttonDUPressed = CHECK_BIT(buttonValues, 11);
+                            _buttonDDPressed = CHECK_BIT(buttonValues, 10);
+                            _buttonDLPressed = CHECK_BIT(buttonValues, 9);
+                            _buttonDRPressed = CHECK_BIT(buttonValues, 8);
+                            _buttonL1Pressed = CHECK_BIT(buttonValues, 7);
+                            _buttonR1Pressed = CHECK_BIT(buttonValues, 6);
+                            _joystickLEngaged = CHECK_BIT(buttonValues, 5);
+                            _joystickREngaged = CHECK_BIT(buttonValues, 4);
+
+
+                            _angleTolerance = MapIntFromByte(_settingAngleTolerance, _settingAngleToleranceMin,
+                                                             _settingAngleToleranceMax);
+                            _turningMultiplier = MapFloatFromByte(_settingTurningMultiplier,
+                                                                  _settingTurningMultiplierMin,
+                                                                  _settingTurningMultiplierMax);
+                            _additiveThrottleMultiplier = MapFloatFromByte(_settingAdditiveThrottleMultiplier,
+                                                                           _settingAdditiveThrottleMultiplierMin,
+                                                                           _settingAdditiveThrottleMultiplierMax);
+
+
+                            //SafeSerialPrintLn(
+                            //        ", AN: " + String(_angleTolerance) + ", TU: " + String(_turningMultiplier) + ", AD: " +
+                            //        String(_additiveThrottleMultiplier));
+
+                            short possibleHeadingValue = (pData[5] << 8) | pData[4];
+
+                            if (!_buttonYPressed && _joystickREngaged)
                             {
-                                headingJoystickEngaged = false;
-                                headingResetEngaged = false;
-                            }
-                            else if (possibleHeadingValue == HEADING_RESET)
-                            {
-                                headingJoystickEngaged = false;
-                                headingResetEngaged = true;
-                            }
-                            else
-                            {
-                                headingJoystickEngaged = true;
-                                headingResetEngaged = false;
-                                smartHeading = possibleHeadingValue;
+                                _smartHeadingTarget = possibleHeadingValue;
                             }
 
 
-                            smartThrottleDrive = (pData[5] << 8) | (pData[4]);
+                            _smartThrottleDrive = (pData[7] << 8) | (pData[6]);
 
-                            throttleLeftDrive = (pData[7] << 8) | pData[6];
-                            throttleRightDrive = (pData[9] << 8) | (pData[8]);
-                            throttleWeapon0 = (pData[11] << 8) | pData[10];
-                            throttleWeapon1 = (pData[13] << 8) | (pData[12]);
+                            _throttleLeftDrive = (pData[9] << 8) | pData[8];
+                            _throttleRightDrive = (pData[11] << 8) | (pData[10]);
+                            _throttleWeapon0 = (pData[13] << 8) | pData[12];
+                            _throttleWeapon1 = (pData[15] << 8) | (pData[14]);
+
+                            _settingAngleTolerance = pData[16];
+                            _settingTurningMultiplier = pData[17];
+                            _settingAdditiveThrottleMultiplier = pData[18];
+
                             _skippedHeartbeats = 0;
-                            timeLastReceivedHeartbeatMillis = millis();
-                            SafeSerialPrintLn(
-                                    "ctrl: " + String(securityByteStart) + " " + String(possibleHeadingValue) + " " +
-                                    String(headingJoystickEngaged) + " " + String(headingResetEngaged) + " " +
-                                    String(smartThrottleDrive) + " " + String(throttleRightDrive) + " " +
-                                    String(throttleLeftDrive) + " " + String(throttleWeapon0) + " " +
-                                    String(throttleWeapon1) + " " + String(currentHeartbeatTime) + " " +
-                                    String(securityByteEnd) + " ");
+                            _timeLastReceivedHeartbeatMillis = millis();
+                            //SafeSerialPrintLn(
+                            //        "ctrl: " + String(securityByteStart) + " " + String(possibleHeadingValue) + " " +
+                            //        String(buttonValues) + " " +
+                            //        String(_joystickREngaged) + " " + String(_headingResetEngaged) + " " +
+                            //        String(_smartThrottleDrive) + " " + String(_throttleRightDrive) + " " +
+                            //        String(_throttleLeftDrive) + " " + String(_throttleWeapon0) + " " +
+                            //        String(_throttleWeapon1) + " " + String(_currentHeartbeatTimeMillis) + " " +
+                            //        String(securityByteEnd) + " ");
                         }
 
                         //SafeSerialPrintLn(
-                        //        "INVALID, NO INCREASE HEARTBEAT. ctrl: " + String(securityByteStart) + " "+ String(throttleLeftDrive) + " " + String(throttleRightDrive) + " " + String(throttleWeapon0) + " " +
-                        //        String(throttleWeapon1) + " " + String(currentHeartbeatTime) + " "+ String(securityByteEnd) + " ");
+                        //        "INVALID, NO INCREASE HEARTBEAT. ctrl: " + String(securityByteStart) + " "+ String(_throttleLeftDrive) + " " + String(_throttleRightDrive) + " " + String(_throttleWeapon0) + " " +
+                        //        String(_throttleWeapon1) + " " + String(_currentHeartbeatTimeMillis) + " "+ String(securityByteEnd) + " ");
 
                         _skippedHeartbeats++;
                     }
                     else
                     {
-                        //SafeSerialPrintLn(
-                        //        "INVALID, BAD SEC BYTE ctrl: " + String(securityByteStart) + " "+ String(throttleLeftDrive) + " " + String(throttleRightDrive) + " " + String(throttleWeapon0) + " " +
-                        //        String(throttleWeapon1) + " " + String(currentHeartbeatTime) + " "+ String(securityByteEnd) + " ");
+                        SafeSerialPrintLn(
+                                "INVALID, BAD SEC BYTE ctrl: " + String(securityByteStart) + " " +
+                                String(_throttleLeftDrive) + " " + String(_throttleRightDrive) + " " +
+                                String(_throttleWeapon0) + " " +
+                                String(_throttleWeapon1) + " " + String(_currentHeartbeatTimeMillis) + " " +
+                                String(securityByteEnd) + " ");
 
                         _skippedHeartbeats++;
                     }
@@ -937,7 +1155,7 @@ void GetAndSetBluetoothData()
     }
     else
     {
-        bluetoothClientExists = false;
+        _bluetoothClientExists = false;
         _skippedHeartbeats++;
     }
 }
