@@ -42,7 +42,9 @@ void setup()
     InitializeEscTelemetry();
 #endif
 
-
+#if LEDS_ENABLED
+    strip.fill(_colorBlack, 0, PIN_NUM_NEOPIXEL_OUTPUT);
+#endif
 }
 
 void loop()
@@ -166,11 +168,11 @@ void InitializeImu()
 
         for (int i = 0; i < 5; i++)
         {
-            SetMainLeds(CRGB::Orange);
-            FastLED.show();
+            SetMainLeds(_colorBlue);
+             strip.show();
             delay(50);
-            SetMainLeds(CRGB::Black);
-            FastLED.show();
+            SetMainLeds(_colorBlack);
+             strip.show();
             delay(50);
         }
 
@@ -219,11 +221,11 @@ void InitializeAccelerometer()
 
         for (int i = 0; i < 5; i++)
         {
-            SetMainLeds(CRGB::Teal);
-            FastLED.show();
+            SetMainLeds(_colorBlue);
+             strip.show();
             delay(50);
-            SetMainLeds(CRGB::Black);
-            FastLED.show();
+            SetMainLeds(_colorBlack);
+             strip.show();
             delay(50);
         }
 
@@ -242,8 +244,22 @@ void InitializeLeds()
 {
     pinMode(PIN_NUM_NEOPIXEL_OUTPUT, OUTPUT);
     delay(1);
-    FastLED.addLeds<NEOPIXEL, PIN_NUM_NEOPIXEL_OUTPUT>(_leds, TOTAL_LED);
-    FastLED.show();
+    strip.begin();
+    strip.show();
+
+
+    _colorWhite = strip.Color(MAX_BRIGHTNESS,MAX_BRIGHTNESS,MAX_BRIGHTNESS);
+    _colorBlack = strip.Color(0,0,0);
+
+    _colorRed = strip.Color(MAX_BRIGHTNESS,0,0);
+    _colorYellow = strip.Color(MAX_BRIGHTNESS,MAX_BRIGHTNESS,0);
+    _colorGreen = strip.Color(0,MAX_BRIGHTNESS,0);
+    _colorTeal = strip.Color(0,MAX_BRIGHTNESS,MAX_BRIGHTNESS);
+    _colorBlue = strip.Color(0,0,MAX_BRIGHTNESS);
+    _colorPurple = strip.Color(MAX_BRIGHTNESS,0,MAX_BRIGHTNESS);
+    
+    
+   
 }
 
 void InitializeBluetooth()
@@ -507,7 +523,7 @@ void GetVoltageData()
 {
     _voltageReadingRaw = analogRead(PIN_VOLTAGE_READER);
     // batt is 15.38, v after divider is 1.392, raw is
-    _voltageReadingMillivolts = (int16_t) ((float) (_voltageReadingRaw) * (7.907455));
+    _voltageReadingMillivolts = _voltageReadingRaw*7.868858-275.40983;
 }
 
 void InitializeEscTelemetry()
@@ -804,6 +820,8 @@ void SetMotorOutputs()
     SetMotorOutput(_testServoR, _throttleRightDrive);
      */
 
+    _currentSmartThrottleWeapon1 = _throttleWeapon1;
+
 
 
     if ((_bluetoothClientExists && _receivedHeartbeatFromClient) || _pwmTimingDebugEnabled)
@@ -818,20 +836,21 @@ void SetMotorOutputs()
 
     if (_servoLIndex != -1)
     {
+        _currentSmartThrottleLeftDrive = smartThrottleLeftDrive;
         ESP32_ISR_Servos.setPosition(_servoLIndex, smartThrottleLeftDrive);
     }
     if (_servoRIndex != -1)
     {
+        _currentSmartThrottleRightDrive = smartThrottleRightDrive;
         ESP32_ISR_Servos.setPosition(_servoRIndex, smartThrottleRightDrive);
     }
     if (_servoW1Index != -1)
     {
-        ESP32_ISR_Servos.setPosition(_servoW1Index, _throttleWeapon1);
+        ESP32_ISR_Servos.setPosition(_servoW1Index, 180-_throttleWeapon1);
     }
     if (_servoW0Index != -1)
     {
-        ulong controlPosition = 1000 + _throttleWeapon0 * (2000 / 180);
-        ESP32_ISR_Servos.setPulseWidth(_servoW0Index, controlPosition);
+
     }
     delayMicroseconds(REFRESH_INTERVAL);
 }
@@ -841,60 +860,39 @@ void SetLeds()
 #if LEDS_ENABLED == false
     return;
 #endif
+    
 
-    /*
-    if (GetFlashValue(500))
-    {
-        SetMainLeds(_colorWhite);
-    }
-    else
-    {
-        SetMainLeds(_colorGrey);
-    }
-     */
-
-    if (_roundTripTimingDebugEnabled)
-    {
-        if (_throttleLeftDrive > 90)
-        {
-            SetMainLeds(CRGB::White);
-        }
-        else
-        {
-            SetMainLeds(CRGB::Black);
-        }
-        FastLED.show();
-        return;
-    }
-
+    
     if ((_bluetoothClientExists && _receivedHeartbeatFromClient) || GetFlashValue(500, false))
     {
         if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_FULL)
         {
-            SetMainLeds(CRGB::Green);
+            SetMainLeds(_colorGreen);
         }
         else if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_LOW)
         {
-            SetMainLeds(CRGB::Yellow);
+            SetMainLeds(_colorYellow);
+            
+            
         }
         else if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_DEAD)
         {
-            SetMainLeds(CRGB::Red);
+            SetMainLeds(_colorRed);
         }
         else if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_USING_USB)
         {
             if (GetFlashValue(250, true))
             {
-                SetMainLeds(CRGB::Red);
+                SetMainLeds(_colorRed);
             }
             else
             {
-                SetMainLeds(CRGB::Black);
+                SetMainLeds(_colorBlack);
             }
         }
         else
         {
-            SetMainLeds(CRGB::Purple);
+            SetMainLeds(_colorPurple);
         }
 
 
@@ -903,14 +901,11 @@ void SetLeds()
     {
         if (GetFlashValue(500, true))
         {
-            SetMainLeds(CRGB::Blue);
-        }
-        else
-        {
-            SetMainLeds(CRGB::Black);
+            SetMainLeds(_colorBlue);
         }
     }
 
+    /*
     for (int i = 2; i < 8; i++)
     {
         if (i == _wheelIndex)
@@ -919,7 +914,7 @@ void SetLeds()
         }
         else
         {
-            _leds[i] = CRGB::Black;
+            _leds[i] = _colorBlack;
         }
     }
 
@@ -928,14 +923,87 @@ void SetLeds()
     {
         _wheelIndex = 2;
     }
+     */
+    
+    uint32_t _colorLeftDrive;
+    uint32_t _colorRightDrive;
+    uint32_t _colorWeapon;
 
-    FastLED.show();
+
+    if(_currentSmartThrottleLeftDrive > 93)
+    {
+        int16_t throttleAbsoluteStrength = _currentSmartThrottleLeftDrive - 90;
+        _colorLeftDrive = strip.ColorHSV(HUE_FORWARD, SAT_FORWARD, 40+throttleAbsoluteStrength);
+        
+    }
+    else if (_currentSmartThrottleLeftDrive < 87)
+    {
+        int16_t throttleAbsoluteStrength = 90 - _currentSmartThrottleLeftDrive;
+        _colorLeftDrive = strip.ColorHSV(HUE_REVERSE, SAT_REVERSE, 40+throttleAbsoluteStrength);
+    }
+    else
+    {
+        _colorLeftDrive = _colorPurple;
+    }
+
+
+    
+    if(_currentSmartThrottleRightDrive > 93)
+    {
+        int16_t throttleAbsoluteStrength = _currentSmartThrottleRightDrive - 90;
+        _colorRightDrive = strip.ColorHSV(HUE_FORWARD, SAT_FORWARD, 40+throttleAbsoluteStrength);
+
+    }
+    else if (_currentSmartThrottleRightDrive < 87)
+    {
+        int16_t throttleAbsoluteStrength = 90 - _currentSmartThrottleRightDrive;
+        _colorRightDrive = strip.ColorHSV(HUE_REVERSE, SAT_REVERSE, 40+throttleAbsoluteStrength);
+    }
+    else
+    {
+        _colorRightDrive = _colorPurple;
+    }
+
+
+
+    if(_currentSmartThrottleWeapon1 > 93)
+    {
+        int16_t throttleAbsoluteStrength = _currentSmartThrottleWeapon1 - 90;
+        _colorWeapon = strip.ColorHSV(HUE_FORWARD, SAT_FORWARD, 40+throttleAbsoluteStrength);
+
+    }
+    else if (_currentSmartThrottleWeapon1 < 87)
+    {
+        int16_t throttleAbsoluteStrength = 90 - _currentSmartThrottleWeapon1;
+        _colorWeapon = strip.ColorHSV(HUE_FORWARD, SAT_FORWARD, 40+throttleAbsoluteStrength);
+    }
+    else
+    {
+        _colorWeapon = _colorPurple;
+    }
+
+    strip.setPixelColor(LED_L_DRIVE, _colorLeftDrive);
+    strip.setPixelColor(LED_R_DRIVE, _colorRightDrive);
+    strip.setPixelColor(LED_W1, _colorWeapon);
+
+    /*
+    strip.setPixelColor(0, strip.Color(255,255,255));
+    strip.setPixelColor(1, strip.Color(255,255,255));
+    strip.setPixelColor(2, strip.Color(255,0,0));
+    strip.setPixelColor(3, strip.Color(255,255,0));
+    strip.setPixelColor(4, strip.Color(0,255,0));
+    strip.setPixelColor(5, strip.Color(0,255,255));
+    strip.setPixelColor(6, strip.Color(0,0,255));
+    strip.setPixelColor(7, strip.Color(255,0,255));
+    */
+    
+    strip.show();
 }
 
-void SetMainLeds(CRGB color)
+void SetMainLeds(uint32_t color)
 {
-    _leds[LED_BOARD] = color;
-    _leds[LED_CENTER] = color;
+    strip.setPixelColor(LED_BOARD, color);
+    strip.setPixelColor(LED_CENTER, color);
 }
 
 bool GetFlashValue(int periodMilliseconds, bool startsTrue)

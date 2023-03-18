@@ -10,7 +10,7 @@
 
 #include <Arduino.h>
 #include <SPI.h>
-#include <FastLED.h>
+#include <Adafruit_NeoPixel.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -156,9 +156,13 @@ NimBLEAttValue _controlMessage;
 
 #define TOTAL_LED 8
 #define MAX_BRIGHTNESS 80
+#define MAX_HUE 255
 #define HUE_BLUE 171
 #define LED_BOARD 0
 #define LED_CENTER 1
+#define LED_L_DRIVE 6
+#define LED_R_DRIVE 4
+#define LED_W1 2
 // These correspond to the positions on a clock
 #define LED_12 2
 #define LED_2 3
@@ -183,9 +187,13 @@ NimBLEAttValue _controlMessage;
 
 #define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
 
+Adafruit_NeoPixel strip(TOTAL_LED, PIN_NUM_NEOPIXEL_OUTPUT, NEO_GRB + NEO_KHZ800);
+
+/*
 CRGB _leds[TOTAL_LED];
 CRGB _colorWhite = CHSV(0, 0, MAX_BRIGHTNESS);
 CRGB _colorGrey = CHSV(0, 0, MAX_BRIGHTNESS / 10);
+ */
 
 int _wheelIndex = 2; // this is spinning pinwheel animation frame
 
@@ -200,8 +208,22 @@ int16_t _throttleWeapon1 = 90;
 int16_t _smartThrottleDrive = 0;
 int16_t _smartHeadingTarget = 0;
 
+int16_t _currentSmartThrottleLeftDrive = 0;
+int16_t _currentSmartThrottleRightDrive = 0;
+int16_t _currentSmartThrottleWeapon1 = 0;
+
 bool _headingResetEngaged = false;
 int16_t _smartHeadingOffset = 0;
+
+uint32_t _colorWhite;
+uint32_t _colorGreen;
+uint32_t _colorYellow;
+uint32_t _colorRed;
+uint32_t _colorBlack;
+uint32_t _colorPurple;
+uint32_t _colorBlue;
+uint32_t _colorTeal;
+
 
 bool _buttonAPressed = false;
 bool _buttonBPressed = false;
@@ -266,11 +288,16 @@ long _previousHeartbeatTimeMillis;
 long _currentHeartbeatTimeMillis;
 long _timeLastReceivedHeartbeatMillis;
 
+long _lastTimeLedsUpdated = 0;
+long _ledUpdateCooldownTime = 50;
+
 long _lastLoopStartTime = 0;
 
 #define TIMEOUT_HEARTBEAT_LOST 1000
 #define TIMEOUT_HEARTBEAT_LOST_REBOOT 60000
 int _skippedHeartbeats = 0;
+
+
 
 // setup
 
@@ -320,7 +347,7 @@ void SetFailsafe();
 
 void SetLeds();
 
-void SetMainLeds(CRGB color);
+void SetMainLeds(uint32_t color);
 
 void SetTimingData();
 
