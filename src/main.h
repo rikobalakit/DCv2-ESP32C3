@@ -133,9 +133,14 @@ int8_t _settingAdditiveThrottleMultiplier;
 float _settingAdditiveThrottleMultiplierMin = 0.1;
 float _settingAdditiveThrottleMultiplierMax = 4.0;
 
+int8_t _settingMaxWeaponThrottle;
+float  _settingMaxWeaponThrottleMin = 0;
+float  _settingMaxWeaponThrottleMax = 1;
+
 int _angleTolerance = 3;
 float _turningMultiplier = 0.3;
 float _additiveThrottleMultiplier = 0.9;
+float _maximumWeaponThrottle = 0.5f;
 
 bool _isInverted = false;
 
@@ -252,7 +257,8 @@ int _servoW1Index = -1;
 bool _interpretString = false;
 
 #define TIMING_MEASUREMENT_SAMPLES 16
-#define MINIMUM_VOLTAGE_BATTERY_FULL 15600
+#define MINIMUM_VOLTAGE_BATTERY_FULL 15200
+#define MINIMUM_VOLTAGE_BATTERY_HIGH 15200
 #define MINIMUM_VOLTAGE_BATTERY_LOW 14000
 #define MINIMUM_VOLTAGE_BATTERY_DEAD 13200
 #define MINIMUM_VOLTAGE_USING_USB 6000

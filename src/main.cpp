@@ -127,9 +127,9 @@ void loop()
     GetWeaponTelemetry();
 #endif
 
-    SafeSerialPrintLn(" BNOX " + String(_bnoAccelerationX) + " LISX " + String(_lisAccelerationX) +
-                      ", BNOY " + String(_bnoAccelerationY) + " LISY " + String(_lisAccelerationY) +
-                      ", BNOZ " + String(_bnoAccelerationZ) + " LISZ " + String(_lisAccelerationZ));
+    //SafeSerialPrintLn(" BNOX " + String(_bnoAccelerationX) + " LISX " + String(_lisAccelerationX) +
+    //                  ", BNOY " + String(_bnoAccelerationY) + " LISY " + String(_lisAccelerationY) +
+    //                  ", BNOZ " + String(_bnoAccelerationZ) + " LISZ " + String(_lisAccelerationZ));
 }
 
 // setup
@@ -451,9 +451,9 @@ void GetIMUData()
                     _orientationPitch = orientationEuler.z() * 57.2958 + 180;
                 }
 
-                SafeSerialPrintLn(
-                        "euler angles: pitch:" + String(_orientationPitch) + " yaw: " + String(_orientationYaw) +
-                        " roll: " + String(_orientationRoll));
+               //SafeSerialPrintLn(
+               //        "euler angles: pitch:" + String(_orientationPitch) + " yaw: " + String(_orientationYaw) +
+               //        " roll: " + String(_orientationRoll));
 
                 _bnoCalibrationGyro = sensorValues.status && 0x00000011;
                 _bnoCalibrationMagnetometer = sensorValues.status && 0x00000011;
@@ -846,7 +846,28 @@ void SetMotorOutputs()
     }
     if (_servoW1Index != -1)
     {
-        ESP32_ISR_Servos.setPosition(_servoW1Index, 180-_throttleWeapon1);
+        //ESP32_ISR_Servos.setPosition(_servoW1Index, 180-_throttleWeapon1);
+        int throttleValue = 180-_throttleWeapon1;
+        if(throttleValue > 90)
+        {
+            // throttleValue was over 90
+            int throttleDelta = throttleValue - 90;
+            int newDelta = throttleDelta * _maximumWeaponThrottle + 90;
+            ESP32_ISR_Servos.setPosition(_servoW1Index, newDelta);
+        }
+        else if (throttleValue < 90)
+        {
+            //throttleValue was under 90
+            //throttleValue was under 90
+            int throttleDelta = 90 - throttleValue;
+            int newDelta = 90 - throttleDelta * _maximumWeaponThrottle;
+            ESP32_ISR_Servos.setPosition(_servoW1Index, newDelta);
+        }
+        else
+        {
+            //probably means throttleValue was 90?
+            ESP32_ISR_Servos.setPosition(_servoW1Index, 90);
+        }
     }
     if (_servoW0Index != -1)
     {
@@ -869,11 +890,14 @@ void SetLeds()
         {
             SetMainLeds(_colorGreen);
         }
+        else if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_HIGH)
+        {
+            SetMainLeds(_colorGreen);
+        }
         else if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_LOW)
         {
             SetMainLeds(_colorYellow);
-            
-            
+                       
         }
         else if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_DEAD)
         {
@@ -928,6 +952,7 @@ void SetLeds()
     uint32_t _colorLeftDrive;
     uint32_t _colorRightDrive;
     uint32_t _colorWeapon;
+    uint32_t _colorWeaponMax;
 
 
     if(_currentSmartThrottleLeftDrive > 93)
@@ -982,9 +1007,19 @@ void SetLeds()
         _colorWeapon = _colorPurple;
     }
 
+    _colorWeaponMax = strip.ColorHSV(HUE_FORWARD, SAT_FORWARD, 255.0 * _maximumWeaponThrottle);
+    if(_maximumWeaponThrottle > 0.95)
+    {
+        _colorWeaponMax = strip.ColorHSV(HUE_REVERSE, HUE_REVERSE, 255);
+    }
+
     strip.setPixelColor(LED_L_DRIVE, _colorLeftDrive);
     strip.setPixelColor(LED_R_DRIVE, _colorRightDrive);
     strip.setPixelColor(LED_W1, _colorWeapon);
+    
+    
+    strip.setPixelColor(3, _colorWeaponMax);
+    strip.setPixelColor(7, _colorWeaponMax);
 
     /*
     strip.setPixelColor(0, strip.Color(255,255,255));
@@ -1161,10 +1196,13 @@ void GetAndSetBluetoothData()
                                                                            _settingAdditiveThrottleMultiplierMin,
                                                                            _settingAdditiveThrottleMultiplierMax);
 
+                            _maximumWeaponThrottle = MapFloatFromByte(_settingMaxWeaponThrottle,
+                                                                           _settingMaxWeaponThrottleMin,
+                                                                           _settingMaxWeaponThrottleMax);
 
-                            //SafeSerialPrintLn(
-                            //        ", AN: " + String(_angleTolerance) + ", TU: " + String(_turningMultiplier) + ", AD: " +
-                            //        String(_additiveThrottleMultiplier));
+
+                            SafeSerialPrintLn(
+                                    "max weapon throttle: " + String(_maximumWeaponThrottle));
 
                             short possibleHeadingValue = (pData[5] << 8) | pData[4];
 
@@ -1184,6 +1222,7 @@ void GetAndSetBluetoothData()
                             _settingAngleTolerance = pData[16];
                             _settingTurningMultiplier = pData[17];
                             _settingAdditiveThrottleMultiplier = pData[18];
+                            _settingMaxWeaponThrottle = pData[19];
 
                             _skippedHeartbeats = 0;
                             _timeLastReceivedHeartbeatMillis = millis();
