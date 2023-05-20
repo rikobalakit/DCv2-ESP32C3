@@ -50,7 +50,7 @@ void setup()
 void loop()
 {
 
-    while (millis() - _lastLoopStartTime < 40)
+    while (millis() - _lastLoopStartTime < 10)
     {
         delay(4);
     }
@@ -262,13 +262,71 @@ void InitializeLeds()
    
 }
 
+bool CompareAddresses(unsigned char address1[], unsigned char address2[])
+{
+    if (address1[0] == address2[0]
+        && address1[1] == address2[1]
+        && address1[2] == address2[2]
+        && address1[3] == address2[3]
+        && address1[4] == address2[4]
+        && address1[5] == address2[5])
+    {
+        return true;
+    }
+
+    return false;
+}
+
+void SetFormulaId()
+{
+    unsigned char thisEspMacAddress[6] = {0};
+    esp_efuse_mac_get_default(thisEspMacAddress);
+
+    // during R&D, this is the "free" one
+    unsigned char formulaAMacAddress[] = {0x58, 0xCF, 0x79, 0xF3, 0x29, 0xBC};
+    unsigned char formulaBMacAddress[] = {0x58, 0xCF, 0x79, 0xF1, 0xFD, 0x44};
+    unsigned char formulaCMacAddress[] = {0x58, 0xCF, 0x79, 0xEA, 0xCE, 0xFC};
+    
+    if(thisEspMacAddress[0] == formulaAMacAddress[0]
+       && thisEspMacAddress[1] == formulaAMacAddress[1]
+       && thisEspMacAddress[2] == formulaAMacAddress[2]
+       && thisEspMacAddress[3] == formulaAMacAddress[3]
+       && thisEspMacAddress[4] == formulaAMacAddress[4]
+       && thisEspMacAddress[5] == formulaAMacAddress[5])
+    {
+        BLENameSuffix = "A";
+        return;
+    }
+    if(thisEspMacAddress[0] == formulaBMacAddress[0]
+       && thisEspMacAddress[1] == formulaBMacAddress[1]
+       && thisEspMacAddress[2] == formulaBMacAddress[2]
+       && thisEspMacAddress[3] == formulaBMacAddress[3]
+       && thisEspMacAddress[4] == formulaBMacAddress[4]
+       && thisEspMacAddress[5] == formulaBMacAddress[5])
+    {
+        BLENameSuffix = "B";
+        return;
+    }
+    if(CompareAddresses(thisEspMacAddress, formulaCMacAddress))
+    {
+        BLENameSuffix = "C";
+        return;
+    }
+
+
+
+    BLENameSuffix = "Z"; // error
+}
+
+
 void InitializeBluetooth()
 {
-    NimBLEDevice::init(BLEName);
+    SetFormulaId();
+    
+    NimBLEDevice::init(BLEName+BLENameSuffix);
     pServer = NimBLEDevice::createServer();
 
     NimBLEService *pService = pServer->createService(SERVICE_UUID);
-
 
     uint16_t conn_handle = 0xFFFE;
     uint16_t minInterval = 1;
@@ -384,7 +442,7 @@ int GetOffsetHeading()
 }
 
 void GetIMUData()
-{
+{    
     if (!_imuEnabledAndFound)
     {
         return;

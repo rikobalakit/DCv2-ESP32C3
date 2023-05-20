@@ -37,7 +37,7 @@
 #define ACCELEROMETER_ENABLED true
 #define VOLTAGE_READER_ENABLED true
 #define MOTORS_ENABLED true
-#define TELEMETRY_ENABLED true
+#define TELEMETRY_ENABLED false
 
 #define DEBUG_
 
@@ -62,7 +62,8 @@ using namespace std;
  * Motors + Telemetry: 40,000uS (25Hz!!!)
  */
 
-std::string BLEName = "DCv2_C";
+std::string BLEName = "DataCollector_";
+std::string BLENameSuffix = "_";
 
 bool _displayEnabledAndFound = false;
 bool _imuEnabledAndFound = false;
@@ -299,8 +300,8 @@ long _ledUpdateCooldownTime = 50;
 
 long _lastLoopStartTime = 0;
 
-#define TIMEOUT_HEARTBEAT_LOST 1000
-#define TIMEOUT_HEARTBEAT_LOST_REBOOT 60000
+#define TIMEOUT_HEARTBEAT_LOST 2000
+#define TIMEOUT_HEARTBEAT_LOST_REBOOT 10000
 int _skippedHeartbeats = 0;
 
 
