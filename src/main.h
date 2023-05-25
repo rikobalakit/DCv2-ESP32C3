@@ -47,6 +47,12 @@
 #include <Adafruit_BNO055.h>
 #endif
 
+#define DETHROTTLE_WEAPON_FACTOR 4 //last 10 // higher = harder throttle. lower = lighter throttle. 0 = none.
+#define DETHROTTLE_WEAPON_HARD_MINIMUM 0.4 // last 0.5 // minimum multiplier
+#define DETHROTTLE_WEAPON_ON_HARD_TURN true
+#define DETHROTTLE_ANGLE_MINIMUM 10
+#define GYRO_LIFT_ANGLE_TOLERANCE 5
+
 using namespace std;
 
 /*
@@ -104,7 +110,7 @@ float _orientationYaw;
 float _orientationPitch;
 float _orientationRoll;
 
-
+bool _isTilted = false;
 
 float _bnoAccelerationX;
 float _bnoAccelerationY;
@@ -134,14 +140,14 @@ int8_t _settingAdditiveThrottleMultiplier;
 float _settingAdditiveThrottleMultiplierMin = 0.1;
 float _settingAdditiveThrottleMultiplierMax = 4.0;
 
-int8_t _settingMaxWeaponThrottle;
-float  _settingMaxWeaponThrottleMin = 0;
-float  _settingMaxWeaponThrottleMax = 1;
+int8_t _settingAttenuationWeaponThrottle;
+float  _settingAttenuationWeaponThrottleMin = 0;
+float  _settingAttenuationWeaponThrottleMax = 20;
 
 int _angleTolerance = 3;
 float _turningMultiplier = 0.3;
 float _additiveThrottleMultiplier = 0.9;
-float _maximumWeaponThrottle = 0.5f;
+float _attenuationWeaponThrottle = 0.5f;
 
 bool _isInverted = false;
 
@@ -169,6 +175,7 @@ NimBLEAttValue _controlMessage;
 #define LED_L_DRIVE 6
 #define LED_R_DRIVE 4
 #define LED_W1 2
+#define LED_TILT 5
 // These correspond to the positions on a clock
 #define LED_12 2
 #define LED_2 3
@@ -217,6 +224,8 @@ int16_t _smartHeadingTarget = 0;
 int16_t _currentSmartThrottleLeftDrive = 0;
 int16_t _currentSmartThrottleRightDrive = 0;
 int16_t _currentSmartThrottleWeapon1 = 0;
+float _currentSmoothThrottleWeapon1 = 90;
+float _rampupTime = 2;
 
 bool _headingResetEngaged = false;
 int16_t _smartHeadingOffset = 0;
@@ -295,6 +304,8 @@ long _previousHeartbeatTimeMillis;
 long _currentHeartbeatTimeMillis;
 long _timeLastReceivedHeartbeatMillis;
 
+long _millisSinceLastMotorLoop = 0;
+
 long _lastTimeLedsUpdated = 0;
 long _ledUpdateCooldownTime = 50;
 
@@ -359,6 +370,10 @@ void SetMainLeds(uint32_t color);
 void SetTimingData();
 
 bool GetFlashValue(int periodMilliseconds, bool startsTrue = true);
+
+void RestartOnButtonCombination();
+
+void SetFormulaId();
 
 // extensions
 
