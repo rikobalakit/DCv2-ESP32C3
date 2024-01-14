@@ -61,6 +61,13 @@ void loop()
 
     SetFailsafe();
 
+    /*
+    SafeSerialPrintLn(String(BLENameSuffix.c_str()));
+    unsigned char thisEspMacAddress[6] = {0};
+    esp_efuse_mac_get_default(thisEspMacAddress);
+    printMac(thisEspMacAddress);
+     */
+    
     if (_pwmTimingDebugEnabled)
     {
         while (true)
@@ -278,14 +285,23 @@ bool CompareAddresses(unsigned char address1[], unsigned char address2[])
     return false;
 }
 
+void printMac(const unsigned char *mac)
+{
+    printf("%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
 void SetFormulaId()
 {
     unsigned char thisEspMacAddress[6] = {0};
     esp_efuse_mac_get_default(thisEspMacAddress);
 
+
+
+
     // during R&D, this is the "free" one
+    // note: the last digit is -2 from the bluetooth address visible in network
     unsigned char formulaAMacAddress[] = {0x58, 0xCF, 0x79, 0xF3, 0x29, 0xBC};
-    unsigned char formulaBMacAddress[] = {0x58, 0xCF, 0x79, 0xF1, 0xFD, 0x44};
+    unsigned char formulaBMacAddress[] = {0x58, 0xCF, 0x79, 0xF0, 0xA2, 0xB4};
     unsigned char formulaCMacAddress[] = {0x58, 0xCF, 0x79, 0xEA, 0xCE, 0xFC};
 
     if (thisEspMacAddress[0] == formulaAMacAddress[0]
@@ -315,7 +331,7 @@ void SetFormulaId()
     }
 
 
-    BLENameSuffix = "Z"; // error
+    BLENameSuffix = "PEE"; // error
 }
 
 
@@ -383,12 +399,22 @@ void InitializeMotors()
 
     ESP32_ISR_Servos.disableAll();
 
-    _servoLIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_L, 1000, 2000);
-    _servoRIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_R, 1000, 2000);
-    _servoW0Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W0, 0, 2000);
-    _servoW1Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W1, 1000, 2000);
 
-    if (_servoLIndex == -1)
+
+#if MOTOR_L_USES_DSHOT
+    motorLeftDrive.install((gpio_num_t) PIN_TEST_SERVO_L, RMT_CHANNEL_0);
+    motorLeftDrive.init();
+    motorLeftDrive.setReversed(false);
+    motorLeftDrive.set3DMode(true);
+
+    for (int i = 0; i < 5; i++)
+    {
+        motorLeftDrive.beep(i);
+    }
+#else
+    _servoLIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_L, 1000, 2000);
+
+        if (_servoLIndex == -1)
     {
         DisplayText(1, "Failure L Servo");
     }
@@ -396,8 +422,23 @@ void InitializeMotors()
     {
         DisplayText(0.25, "Success L Servo");
     }
+#endif
 
-    if (_servoRIndex == -1)
+#if MOTOR_R_USES_DSHOT
+    motorRightDrive.install((gpio_num_t) PIN_TEST_SERVO_R, RMT_CHANNEL_1);
+    motorRightDrive.init();
+    motorRightDrive.set3DMode(true);
+
+    for (int i = 0; i < 5; i++)
+    {
+        motorRightDrive.beep(i);
+    }
+
+
+#else
+    _servoRIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_R, 1000, 2000);
+
+        if (_servoRIndex == -1)
     {
         DisplayText(1, "Failure R Servo");
     }
@@ -405,8 +446,16 @@ void InitializeMotors()
     {
         DisplayText(0.25, "Success R Servo");
     }
+#endif
 
-    if (_servoW0Index == -1)
+#if MOTOR_W0_USES_DSHOT
+    motorWeapon0.install((gpio_num_t) PIN_TEST_SERVO_W0, RMT_CHANNEL_2);
+    motorWeapon0.init();
+    motorWeapon0.set3DMode(true);
+#else
+    _servoW0Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W0, 500, 2500);
+
+        if (_servoW0Index == -1)
     {
         DisplayText(1, "Failure W0 Servo");
     }
@@ -415,7 +464,16 @@ void InitializeMotors()
         DisplayText(0.25, "Success W0 Servo");
     }
 
-    if (_servoW1Index == -1)
+#endif
+
+#if MOTOR_W1_USES_DSHOT
+    motorWeapon1.install((gpio_num_t) PIN_TEST_SERVO_W1, RMT_CHANNEL_3);
+    motorWeapon1.init();
+    motorWeapon1.set3DMode(true);
+#else
+    _servoW1Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W1, 1000, 2000);
+
+        if (_servoW1Index == -1)
     {
         DisplayText(1, "Failure W1 Servo");
     }
@@ -423,6 +481,14 @@ void InitializeMotors()
     {
         DisplayText(0.25, "Success W1 Servo");
     }
+#endif
+
+
+
+
+
+
+
 
 }
 
@@ -507,9 +573,9 @@ void GetIMUData()
                     _orientationPitch = orientationEuler.z() * 57.2958 + 180;
                 }
 
-                SafeSerialPrintLn(
-                        "euler angles: pitch:" + String(_orientationPitch) + " yaw: " + String(_orientationYaw) +
-                        " roll: " + String(_orientationRoll));
+                //SafeSerialPrintLn(
+                //        "euler angles: pitch:" + String(_orientationPitch) + " yaw: " + String(_orientationYaw) +
+                //        " roll: " + String(_orientationRoll));
 
                 _bnoCalibrationGyro = sensorValues.status && 0x00000011;
                 _bnoCalibrationMagnetometer = sensorValues.status && 0x00000011;
@@ -604,10 +670,10 @@ void SetWeaponTelemetrySignal()
 
     ulong telemetryRequestWidth = 50;
 
-    ESP32_ISR_Servos.setPulseWidth(_servoW0Index, telemetryRequestWidth);
+    //ESP32_ISR_Servos.setPulseWidth(_servoW0Index, telemetryRequestWidth);
     _timeTelemetrySignalSentMicros = micros();
 
-    delayMicroseconds(REFRESH_INTERVAL);
+    //delayMicroseconds(REFRESH_INTERVAL);
 }
 
 int WrapEulerAngle(int inputAngle)
@@ -797,6 +863,12 @@ int ClampInt(int input, int min, int max)
 
 int ClampServoAngle(int input)
 {
+    int DEADZONE_ANGLE = 3;
+    if(input >= (90 - DEADZONE_ANGLE) && input <= (90 + DEADZONE_ANGLE))
+    {
+        input = 90;
+    }
+
     return ClampInt(input, 0, 180);
 }
 
@@ -824,6 +896,7 @@ void SetMotorOutputs()
     int smartThrottleRightDrive = 90;
 
     bool isSmartTurning = false;
+    float absAngleDifferenceFromSmartTurning = 0;
     
     if (_buttonDUPressed == true ||
         _buttonDDPressed == true ||
@@ -842,13 +915,13 @@ void SetMotorOutputs()
         }
         if (_buttonDLPressed)
         {
-            smartThrottleLeftDrive += -90;
-            smartThrottleRightDrive += 90;
+            smartThrottleLeftDrive += -45;
+            smartThrottleRightDrive += 45;
         }
         if (_buttonDRPressed)
         {
-            smartThrottleLeftDrive += 90;
-            smartThrottleRightDrive += -90;
+            smartThrottleLeftDrive += 45;
+            smartThrottleRightDrive += -45;
         }
     }
     else
@@ -856,6 +929,7 @@ void SetMotorOutputs()
         _headingResetEngaged = _buttonYPressed;
 
         int _headingOffset = 0;
+        if (_isInverted)
         if (_isInverted)
         {
             _headingOffset = 180;
@@ -869,7 +943,7 @@ void SetMotorOutputs()
         //                  ", new heading:" + String(GetOffsetHeading()) + ", Delta: " +
         //                  String(angleDelta));
 
-        throttleToAdd = abs(5 + (int) ((float) angleDelta * _turningMultiplier));
+        throttleToAdd = abs(MINIMUM_TURNING_THROTTLE + (int) ((float) abs(angleDelta) * _turningMultiplier));
 
         float invertedMultiplier = 1;
         if (_isInverted)
@@ -880,7 +954,7 @@ void SetMotorOutputs()
         if (angleDelta > _angleTolerance && _joystickREngaged)
         {
             // turn right
-            smartThrottleLeftDrive = 90 + throttleToAdd;
+            smartThrottleLeftDrive = 90 + throttleToAdd + TURN_FORWARD_BIAS;
             smartThrottleRightDrive = 90 - throttleToAdd;
 
             smartThrottleLeftDrive = ClampServoAngle(smartThrottleLeftDrive);
@@ -894,7 +968,7 @@ void SetMotorOutputs()
         {
             // turn left
             smartThrottleLeftDrive = 90 - throttleToAdd;
-            smartThrottleRightDrive = 90 + throttleToAdd;
+            smartThrottleRightDrive = 90 + throttleToAdd + TURN_FORWARD_BIAS;
 
             smartThrottleLeftDrive = ClampServoAngle(smartThrottleLeftDrive);
             smartThrottleRightDrive = ClampServoAngle(smartThrottleRightDrive);
@@ -914,6 +988,8 @@ void SetMotorOutputs()
 
         smartThrottleLeftDrive += _smartThrottleDrive * _additiveThrottleMultiplier * invertedMultiplier;
         smartThrottleRightDrive += _smartThrottleDrive * _additiveThrottleMultiplier * invertedMultiplier;
+
+        absAngleDifferenceFromSmartTurning = abs(angleDelta);
     }
 
 
@@ -934,14 +1010,29 @@ void SetMotorOutputs()
     
     if(isSmartTurning)
     {
-        if(_currentSmoothThrottleWeapon1 > 120)
+        auto lowCeiling = absAngleDifferenceFromSmartTurning * _attenuationWeaponThrottleTurning;
+        auto highCeiling = 180 - (absAngleDifferenceFromSmartTurning * _attenuationWeaponThrottleTurning);
+        auto marginFromZero = 20;
+
+        if(lowCeiling > (90 - marginFromZero))
         {
-            _currentSmoothThrottleWeapon1 = 120;
+            lowCeiling = 90 - marginFromZero;
         }
 
-        if(_currentSmoothThrottleWeapon1 < 60)
+        if(highCeiling < (90 + marginFromZero))
         {
-            _currentSmoothThrottleWeapon1 = 60;
+            highCeiling = 90 + marginFromZero;
+        }
+
+
+        if(_currentSmoothThrottleWeapon1 > highCeiling)
+        {
+            _currentSmoothThrottleWeapon1 = highCeiling;
+        }
+
+        if(_currentSmoothThrottleWeapon1 < lowCeiling)
+        {
+            _currentSmoothThrottleWeapon1 = lowCeiling;
         }
     }
     
@@ -1013,18 +1104,38 @@ void SetMotorOutputs()
     }
 
 
+
+        _currentSmartThrottleLeftDrive = smartThrottleLeftDrive;
+
+#if MOTOR_L_USES_DSHOT
+        //motorLeftDrive.sendThrottle3D(DegreesToDShotThrottle(smartThrottleLeftDrive));
+        int16_t milliswrap = sin(millis()*2/10000*PI)*50;
+        motorLeftDrive.sendThrottle3D(milliswrap);
+        SafeSerialPrintLn("new throttle: " + String(milliswrap));
+        delay(1);
+#else
     if (_servoLIndex != -1)
     {
-        _currentSmartThrottleLeftDrive = smartThrottleLeftDrive;
         ESP32_ISR_Servos.setPosition(_servoLIndex, smartThrottleLeftDrive);
     }
+#endif
+
+
     if (_servoRIndex != -1)
     {
-        _currentSmartThrottleRightDrive = smartThrottleRightDrive;
+#if MOTOR_R_USES_DSHOT
+        motorRightDrive.sendThrottle3D(DegreesToDShotThrottle(smartThrottleRightDrive));
+#else
         ESP32_ISR_Servos.setPosition(_servoRIndex, smartThrottleRightDrive);
+#endif
+        _currentSmartThrottleRightDrive = smartThrottleRightDrive;
+
     }
     if (_servoW1Index != -1)
     {
+#if MOTOR_W1_USES_DSHOT
+        motorWeapon1.sendThrottle3D(DegreesToDShotThrottle(_currentSmoothThrottleWeapon1));
+#else
         if(_currentSmoothThrottleWeapon1 > 87 && _currentSmoothThrottleWeapon1 < 93)
         {
             ESP32_ISR_Servos.setPosition(_servoW1Index, 90);
@@ -1033,14 +1144,52 @@ void SetMotorOutputs()
         {
             ESP32_ISR_Servos.setPosition(_servoW1Index, _currentSmoothThrottleWeapon1);
         }
-        
-        
+#endif
+
+
+
     }
     if (_servoW0Index != -1)
     {
-
+        int clampedThrottle = 0;
+        if (_throttleWeapon0 > 45)
+        {
+            clampedThrottle = 90;
+        }
+#if MOTOR_W0_USES_DSHOT
+        motorWeapon0.sendThrottleValue(DegreesToDShotThrottle(clampedThrottle));
+#else
+        ESP32_ISR_Servos.setPosition(_servoW0Index, 180-2*clampedThrottle);
+#endif
     }
-    delayMicroseconds(REFRESH_INTERVAL);
+
+    /*
+    if(_timeSinceLastPwmUpdateUs == 0)
+    {
+        _timeSinceLastPwmUpdateUs = micros();
+    }
+
+    //delayMicroseconds(REFRESH_INTERVAL/2);
+
+    long currentTimeUs = micros();
+    long timeDifferenceSinceLastUpdateUs = currentTimeUs - _timeSinceLastPwmUpdateUs;
+    long addedDelay = (REFRESH_INTERVAL-timeDifferenceSinceLastUpdateUs);
+
+    SafeSerialPrintLn("time difference: " + String(timeDifferenceSinceLastUpdateUs) + " catchup time: " + String(addedDelay));
+
+    while(addedDelay < 0)
+    {
+        SafeSerialPrintLn("added delay was negative: " + String(addedDelay));
+        addedDelay += REFRESH_INTERVAL;
+    }
+    delayMicroseconds(addedDelay);
+*/
+    _timeSinceLastPwmUpdateUs = micros();
+}
+
+uint16_t DegreesToDShotThrottle(int degreesInput)
+{
+    return (degreesInput) * 1000 / (180);
 }
 
 void SetLeds()
@@ -1383,9 +1532,13 @@ void GetAndSetBluetoothData()
                                                                           _settingAttenuationWeaponThrottleMin,
                                                                           _settingAttenuationWeaponThrottleMax);
 
+                            _attenuationWeaponThrottleTurning = MapFloatFromByte(_settingAttenuationWeaponThrottleTurning,
+                                                                          _settingAttenuationWeaponThrottleTurningMin,
+                                                                          _settingAttenuationWeaponThrottleTurningMax);
 
-                            SafeSerialPrintLn(
-                                    "weapon attenuation angle: " + String(_attenuationWeaponThrottle));
+
+                            //SafeSerialPrintLn(
+                            //        "weapon attenuation angle: " + String(_attenuationWeaponThrottle));
 
                             short possibleHeadingValue = (pData[5] << 8) | pData[4];
 
@@ -1406,6 +1559,8 @@ void GetAndSetBluetoothData()
                             _settingTurningMultiplier = pData[17];
                             _settingAdditiveThrottleMultiplier = pData[18];
                             _settingAttenuationWeaponThrottle = pData[19];
+                            _settingAttenuationWeaponThrottleTurning = pData[20];
+
 
                             _skippedHeartbeats = 0;
                             _timeLastReceivedHeartbeatMillis = millis();

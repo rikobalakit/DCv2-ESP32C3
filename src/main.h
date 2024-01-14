@@ -18,10 +18,13 @@
 #include <Adafruit_H3LIS331.h>
 #include <ESP32_New_ISR_Servo.h>
 #include <quaternion.h>
+#include <DShotESC.h>
 
 #define SERVICE_UUID "7ac5d0b9-a214-4c2b-b02a-7d300d756709"
 #define TELEMETRY_ALL_UUID "64dc361e-9e25-4ab9-aa07-4813b15f2c83"
 #define CTRL_ALL_UUID "1d340766-ffa2-4aed-b03d-cf3796a46d82"
+
+
 
 // Want to declare a list of safe client addresses
 // steam deck
@@ -144,10 +147,17 @@ int8_t _settingAttenuationWeaponThrottle;
 float  _settingAttenuationWeaponThrottleMin = 0;
 float  _settingAttenuationWeaponThrottleMax = 20;
 
+
+int8_t _settingAttenuationWeaponThrottleTurning;
+float  _settingAttenuationWeaponThrottleTurningMin = 0;
+float  _settingAttenuationWeaponThrottleTurningMax = 0.5;
+
+
 int _angleTolerance = 3;
 float _turningMultiplier = 0.3;
 float _additiveThrottleMultiplier = 0.9;
 float _attenuationWeaponThrottle = 0.5f;
+float _attenuationWeaponThrottleTurning = 0.5f;
 
 bool _isInverted = false;
 
@@ -163,6 +173,11 @@ NimBLEAttValue _controlMessage;
 #define PIN_TEST_SERVO_W0 D9
 #define PIN_TEST_SERVO_W1 D8
 #define PIN_NUM_NEOPIXEL_OUTPUT D2
+
+#define MOTOR_L_USES_DSHOT false
+#define MOTOR_R_USES_DSHOT false
+#define MOTOR_W0_USES_DSHOT false
+#define MOTOR_W1_USES_DSHOT false
 
 // RGBLEDs
 
@@ -199,6 +214,9 @@ NimBLEAttValue _controlMessage;
 #define STARTING_BRIGHTNESS 40
 
 #define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
+
+#define TURN_FORWARD_BIAS 4 //can be negative. unit is servo degrees.
+#define MINIMUM_TURNING_THROTTLE 15 // unit is servo degrees
 
 Adafruit_NeoPixel strip(TOTAL_LED, PIN_NUM_NEOPIXEL_OUTPUT, NEO_GRB + NEO_KHZ800);
 
@@ -275,6 +293,7 @@ bool _interpretString = false;
 long _timingMeasurementBuffer[TIMING_MEASUREMENT_SAMPLES];
 int _currentTimingMeasurementBufferIndex = 0;
 long _lastCycleTime = 0;
+long _timeSinceLastPwmUpdateUs = 0;
 
 // copied from french blheli stuff https://www.rcgroups.com/forums/showthread.php?2555162-KISS-ESC-24A-Race-Edition-Flyduino-32bit-ESC
 
@@ -315,9 +334,29 @@ long _lastLoopStartTime = 0;
 #define TIMEOUT_HEARTBEAT_LOST_REBOOT 10000
 int _skippedHeartbeats = 0;
 
+//dshot stuff
+const auto FAILSAFE_THROTTLE = 999;
+const auto INITIAL_THROTTLE = 1048;
 
+#if MOTOR_L_USES_DSHOT
+DShotESC motorLeftDrive;
+#endif
+
+#if MOTOR_L_USES_DSHOT
+DShotESC motorRightDrive;
+#endif
+
+#if MOTOR_L_USES_DSHOT
+DShotESC motorWeapon0;
+#endif
+
+#if MOTOR_L_USES_DSHOT
+DShotESC motorWeapon1;
+#endif
 
 // setup
+
+uint16_t DegreesToDShotThrottle(int degreesInput);
 
 void InitializeDisplay();
 
@@ -334,6 +373,8 @@ void InitializeEscTelemetry();
 void InitializeVoltageReader();
 
 void InitializeLeds();
+
+void printMac(const unsigned char *mac);
 
 // inputs
 

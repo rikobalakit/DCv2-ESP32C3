@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CMakeRunConfigurationManager" shouldGenerate="true" shouldDeleteObsolete="true">
+    <generated>
+      <config projectName="DCv2_SteamDeck_Prototype" targetName="Z_DUMMY_TARGET" />
+      <config projectName="DCv2_SteamDeck_Prototype" targetName="Production" />
+      <config projectName="DCv2_SteamDeck_Prototype" targetName="Debug" />
+    </generated>
+  </component>
+  <component name="CMakeSettings">
+    <configurations>
+      <configuration PROFILE_NAME="esp32-c3-devkitm-1" ENABLED="true" CONFIG_NAME="esp32-c3-devkitm-1" />
+    </configurations>
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="4140abf3-12ea-4e15-bceb-f657368fe157" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/src/main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.h" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="ExecutionTargetManager" SELECTED_TARGET="CMakeBuildProfile:esp32-c3-devkitm-1" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitSEFilterConfiguration">
+    <file-type-list>
+      <filtered-out-file-type name="LOCAL_BRANCH" />
+      <filtered-out-file-type name="REMOTE_BRANCH" />
+      <filtered-out-file-type name="TAG" />
+      <filtered-out-file-type name="COMMIT_BY_MESSAGE" />
+    </file-type-list>
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="ProjectApplicationVersion">
+    <option name="ide" value="CLion" />
+    <option name="majorVersion" value="2021" />
+    <option name="minorVersion" value="3" />
+  </component>
+  <component name="ProjectId" id="2Hft6yF0j7QwFeVIXYWqAcUj4FO" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="RunOnceActivity.cidr.known.project.marker" value="true" />
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="cf.first.check.clang-format" value="false" />
+    <property name="cidr.known.project.marker" value="true" />
+    <property name="cmake.loaded.for.project" value="true" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/lib" />
+    <property name="nodejs_package_manager_path" value="npm" />
+    <property name="settings.editor.selected.configurable" value="editor.preferences.completion" />
+  </component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="D:\Unity Projects\RobotCombat\DCv2\DCv2_SteamDeck_Prototype\lib" />
+    </key>
+  </component>
+  <component name="RunManager" selected="PlatformIO.PlatformIO Debug">
+    <configuration name="Z_DUMMY_TARGET" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="DCv2_SteamDeck_Prototype" TARGET_NAME="Z_DUMMY_TARGET" CONFIG_NAME="esp32-c3-devkitm-1" RUN_TARGET_PROJECT_NAME="DCv2_SteamDeck_Prototype" RUN_TARGET_NAME="Z_DUMMY_TARGET">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="PlatformIO Debug" type="platformio" factoryName="PlatformIO Debug" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="DCv2_SteamDeck_Prototype" TARGET_NAME="Debug" CONFIG_NAME="esp32-c3-devkitm-1" RUN_TARGET_PROJECT_NAME="DCv2_SteamDeck_Prototype" RUN_TARGET_NAME="Debug">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="PlatformIO Upload" type="platformio" factoryName="PlatformIO Upload" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="DCv2_SteamDeck_Prototype" TARGET_NAME="Production" CONFIG_NAME="esp32-c3-devkitm-1" RUN_TARGET_PROJECT_NAME="DCv2_SteamDeck_Prototype" RUN_TARGET_NAME="Production">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <list>
+      <item itemvalue="CMake Application.Z_DUMMY_TARGET" />
+      <item itemvalue="PlatformIO.PlatformIO Debug" />
+      <item itemvalue="PlatformIO.PlatformIO Upload" />
+    </list>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="4140abf3-12ea-4e15-bceb-f657368fe157" name="Changes" comment="" />
+      <created>1668687796165</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1668687796165</updated>
+      <workItem from="1668687798465" duration="12963000" />
+      <workItem from="1668792039942" duration="954000" />
+      <workItem from="1668838907341" duration="631000" />
+      <workItem from="1668854042663" duration="4195000" />
+      <workItem from="1668955132493" duration="8810000" />
+      <workItem from="1669033632608" duration="4128000" />
+      <workItem from="1669118744992" duration="8093000" />
+      <workItem from="1669126951982" duration="3287000" />
+      <workItem from="1669211297902" duration="1273000" />
+      <workItem from="1669253914592" duration="1474000" />
+      <workItem from="1669505483685" duration="2642000" />
+      <workItem from="1669571997268" duration="21931000" />
+      <workItem from="1669672620425" duration="5731000" />
+      <workItem from="1669678965683" duration="2777000" />
+      <workItem from="1669681797762" duration="15439000" />
+      <workItem from="1669864048093" duration="9433000" />
+      <workItem from="1669937566270" duration="201000" />
+      <workItem from="1669938017854" duration="4667000" />
+      <workItem from="1669947277588" duration="7992000" />
+      <workItem from="1670099703943" duration="7958000" />
+      <workItem from="1670221346443" duration="3000" />
+      <workItem from="1670470637103" duration="14143000" />
+      <workItem from="1670556009399" duration="8622000" />
+      <workItem from="1671744728191" duration="5167000" />
+      <workItem from="1672261124571" duration="818000" />
+      <workItem from="1672869084678" duration="904000" />
+      <workItem from="1673682356216" duration="2000" />
+      <workItem from="1673750922469" duration="2561000" />
+      <workItem from="1674022312846" duration="684000" />
+      <workItem from="1674113576773" duration="2261000" />
+      <workItem from="1674376896246" duration="641000" />
+      <workItem from="1674521627823" duration="6929000" />
+      <workItem from="1674566094466" duration="3694000" />
+      <workItem from="1674620963091" duration="1606000" />
+      <workItem from="1674860113769" duration="624000" />
+      <workItem from="1675769980167" duration="723000" />
+      <workItem from="1675789550899" duration="597000" />
+      <workItem from="1678921143596" duration="599000" />
+      <workItem from="1678996799904" duration="625000" />
+      <workItem from="1679016446842" duration="2729000" />
+      <workItem from="1679159014524" duration="8586000" />
+      <workItem from="1680328773915" duration="1626000" />
+      <workItem from="1680483190213" duration="1575000" />
+      <workItem from="1680576072669" duration="2014000" />
+      <workItem from="1684551167086" duration="14580000" />
+      <workItem from="1684818862898" duration="1421000" />
+      <workItem from="1684881693944" duration="79000" />
+      <workItem from="1684883233070" duration="1536000" />
+      <workItem from="1684990342011" duration="9222000" />
+      <workItem from="1694800050286" duration="3574000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/src/main.h</url>
+          <line>77</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>
