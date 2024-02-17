@@ -61,12 +61,12 @@ void loop()
 
     SetFailsafe();
 
-    /*
+
     SafeSerialPrintLn(String(BLENameSuffix.c_str()));
     unsigned char thisEspMacAddress[6] = {0};
     esp_efuse_mac_get_default(thisEspMacAddress);
     printMac(thisEspMacAddress);
-     */
+
     
     if (_pwmTimingDebugEnabled)
     {
@@ -300,7 +300,8 @@ void SetFormulaId()
 
     // during R&D, this is the "free" one
     // note: the last digit is -2 from the bluetooth address visible in network
-    unsigned char formulaAMacAddress[] = {0x58, 0xCF, 0x79, 0xF3, 0x29, 0xBC};
+    //58:CF:79:EA:D9:D8
+    unsigned char formulaAMacAddress[] = {0x58, 0xCF, 0x79, 0xEA, 0xD9, 0xD8};
     unsigned char formulaBMacAddress[] = {0x58, 0xCF, 0x79, 0xF0, 0xA2, 0xB4};
     unsigned char formulaCMacAddress[] = {0x58, 0xCF, 0x79, 0xEA, 0xCE, 0xFC};
 
@@ -936,7 +937,7 @@ void SetMotorOutputs()
         }
         auto angleDelta = GetAngleDeltaDegrees(GetOffsetHeading(), _smartHeadingTarget + _headingOffset);
 
-        int throttleToAdd = 20;
+        int throttleToAdd = 10;
 
         //SafeSerialPrintLn("currentheading: " + String(_orientationYaw) + ", offset: " + String(_smartHeadingOffset) +
         //                  ", target heading: " + String(_smartHeadingTarget) +
