@@ -16,7 +16,7 @@
 #include <Adafruit_SSD1306.h>
 #include <NimBLEDevice.h>
 #include <Adafruit_H3LIS331.h>
-#include <ESP32_New_ISR_Servo.h>
+#include <Servo.h>
 #include <quaternion.h>
 #include <DShotESC.h>
 
@@ -219,6 +219,8 @@ NimBLEAttValue _controlMessage;
 #define MINIMUM_TURNING_THROTTLE 15 // unit is servo degrees
 
 Adafruit_NeoPixel strip(TOTAL_LED, PIN_NUM_NEOPIXEL_OUTPUT, NEO_GRB + NEO_KHZ800);
+
+Servo allServos = Servo();
 
 /*
 CRGB _leds[TOTAL_LED];

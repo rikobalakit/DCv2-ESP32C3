@@ -67,7 +67,7 @@ void loop()
     esp_efuse_mac_get_default(thisEspMacAddress);
     printMac(thisEspMacAddress);
 
-    
+
     if (_pwmTimingDebugEnabled)
     {
         while (true)
@@ -396,12 +396,6 @@ void InitializeMotors()
 {
     DisplayText(0.25, "Attaching motors", "Pins: " + String(PIN_TEST_SERVO_L) + ", " + String(PIN_TEST_SERVO_R));
 
-    ESP32_ISR_Servos.useTimer(USE_ESP32_TIMER_NO);
-
-    ESP32_ISR_Servos.disableAll();
-
-
-
 #if MOTOR_L_USES_DSHOT
     motorLeftDrive.install((gpio_num_t) PIN_TEST_SERVO_L, RMT_CHANNEL_0);
     motorLeftDrive.init();
@@ -413,15 +407,9 @@ void InitializeMotors()
         motorLeftDrive.beep(i);
     }
 #else
-    _servoLIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_L, 1000, 2000);
-
-        if (_servoLIndex == -1)
+    if(allServos.detached(PIN_TEST_SERVO_L))
     {
-        DisplayText(1, "Failure L Servo");
-    }
-    else
-    {
-        DisplayText(0.25, "Success L Servo");
+        allServos.attach(PIN_TEST_SERVO_L, 1000, 2000);
     }
 #endif
 
@@ -435,17 +423,10 @@ void InitializeMotors()
         motorRightDrive.beep(i);
     }
 
-
 #else
-    _servoRIndex = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_R, 1000, 2000);
-
-        if (_servoRIndex == -1)
+    if(allServos.detached(PIN_TEST_SERVO_R))
     {
-        DisplayText(1, "Failure R Servo");
-    }
-    else
-    {
-        DisplayText(0.25, "Success R Servo");
+        allServos.attach(PIN_TEST_SERVO_R, 1000, 2000);
     }
 #endif
 
@@ -454,17 +435,10 @@ void InitializeMotors()
     motorWeapon0.init();
     motorWeapon0.set3DMode(true);
 #else
-    _servoW0Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W0, 500, 2500);
-
-        if (_servoW0Index == -1)
+    if(allServos.detached(PIN_TEST_SERVO_W0))
     {
-        DisplayText(1, "Failure W0 Servo");
+        allServos.attach(PIN_TEST_SERVO_W0, 1000, 2000);
     }
-    else
-    {
-        DisplayText(0.25, "Success W0 Servo");
-    }
-
 #endif
 
 #if MOTOR_W1_USES_DSHOT
@@ -472,27 +446,54 @@ void InitializeMotors()
     motorWeapon1.init();
     motorWeapon1.set3DMode(true);
 #else
-    _servoW1Index = ESP32_ISR_Servos.setupServo(PIN_TEST_SERVO_W1, 1000, 2000);
-
-        if (_servoW1Index == -1)
+    if(allServos.detached(PIN_TEST_SERVO_W1))
     {
-        DisplayText(1, "Failure W1 Servo");
-    }
-    else
-    {
-        DisplayText(0.25, "Success W1 Servo");
+        allServos.attach(PIN_TEST_SERVO_W1, 1000, 2000);
     }
 #endif
 
 
-
-
-
-
-
-
 }
 
+void DisableMotors()
+{
+#if MOTOR_L_USES_DSHOT
+    //Not yet implemented!
+#else
+    if(!allServos.detached(PIN_TEST_SERVO_L))
+    {
+        allServos.detach(PIN_TEST_SERVO_L);
+    }
+#endif
+
+#if MOTOR_R_USES_DSHOT
+    //Not yet implemented!
+#else
+    if(!allServos.detached(PIN_TEST_SERVO_R))
+    {
+        allServos.detach(PIN_TEST_SERVO_R);
+    }
+#endif
+
+#if MOTOR_W0_USES_DSHOT
+    //Not yet implemented!
+#else
+    if(!allServos.detached(PIN_TEST_SERVO_W0))
+    {
+        allServos.detach(PIN_TEST_SERVO_W0);
+    }
+#endif
+
+#if MOTOR_W1_USES_DSHOT
+    //Not yet implemented!
+#else
+    if(!allServos.detached(PIN_TEST_SERVO_W1))
+    {
+        allServos.detach(PIN_TEST_SERVO_W1);
+    }
+#endif
+
+}
 
 void InitializeVoltageReader()
 {
@@ -587,7 +588,7 @@ void GetIMUData()
                     _smartHeadingOffset = -_orientationYaw;
                 }
 
-                if(_orientationRoll > 5 || _orientationRoll < -5)
+                if (_orientationRoll > 5 || _orientationRoll < -5)
                 {
                     _isTilted = true;
                 }
@@ -865,7 +866,7 @@ int ClampInt(int input, int min, int max)
 int ClampServoAngle(int input)
 {
     int DEADZONE_ANGLE = 3;
-    if(input >= (90 - DEADZONE_ANGLE) && input <= (90 + DEADZONE_ANGLE))
+    if (input >= (90 - DEADZONE_ANGLE) && input <= (90 + DEADZONE_ANGLE))
     {
         input = 90;
     }
@@ -898,7 +899,7 @@ void SetMotorOutputs()
 
     bool isSmartTurning = false;
     float absAngleDifferenceFromSmartTurning = 0;
-    
+
     if (_buttonDUPressed == true ||
         _buttonDDPressed == true ||
         _buttonDLPressed == true ||
@@ -931,9 +932,11 @@ void SetMotorOutputs()
 
         int _headingOffset = 0;
         if (_isInverted)
-        if (_isInverted)
         {
-            _headingOffset = 180;
+            if (_isInverted)
+            {
+                _headingOffset = 180;
+            }
         }
         auto angleDelta = GetAngleDeltaDegrees(GetOffsetHeading(), _smartHeadingTarget + _headingOffset);
 
@@ -962,29 +965,32 @@ void SetMotorOutputs()
             smartThrottleRightDrive = ClampServoAngle(smartThrottleRightDrive);
 
             isSmartTurning = true;
-            
+
             //SafeSerialPrintLn("Throttles: " + String(smartThrottleLeftDrive) + " " + String(smartThrottleRightDrive) + "(Right)");
-        }
-        else if (angleDelta < -_angleTolerance && _joystickREngaged)
-        {
-            // turn left
-            smartThrottleLeftDrive = 90 - throttleToAdd;
-            smartThrottleRightDrive = 90 + throttleToAdd + TURN_FORWARD_BIAS;
-
-            smartThrottleLeftDrive = ClampServoAngle(smartThrottleLeftDrive);
-            smartThrottleRightDrive = ClampServoAngle(smartThrottleRightDrive);
-
-            isSmartTurning = true;
-
-            //SafeSerialPrintLn("Throttles: " + String(smartThrottleLeftDrive) + " " + String(smartThrottleRightDrive) + "(Left)");
         }
         else
         {
-            // neutral
-            smartThrottleLeftDrive = 90;
-            smartThrottleRightDrive = 90;
+            if (angleDelta < -_angleTolerance && _joystickREngaged)
+            {
+                // turn left
+                smartThrottleLeftDrive = 90 - throttleToAdd;
+                smartThrottleRightDrive = 90 + throttleToAdd + TURN_FORWARD_BIAS;
 
-            //SafeSerialPrintLn("Throttles: " + String(smartThrottleLeftDrive) + " " + String(smartThrottleRightDrive) + "(Neutral)");
+                smartThrottleLeftDrive = ClampServoAngle(smartThrottleLeftDrive);
+                smartThrottleRightDrive = ClampServoAngle(smartThrottleRightDrive);
+
+                isSmartTurning = true;
+
+                //SafeSerialPrintLn("Throttles: " + String(smartThrottleLeftDrive) + " " + String(smartThrottleRightDrive) + "(Left)");
+            }
+            else
+            {
+                // neutral
+                smartThrottleLeftDrive = 90;
+                smartThrottleRightDrive = 90;
+
+                //SafeSerialPrintLn("Throttles: " + String(smartThrottleLeftDrive) + " " + String(smartThrottleRightDrive) + "(Neutral)");
+            }
         }
 
         smartThrottleLeftDrive += _smartThrottleDrive * _additiveThrottleMultiplier * invertedMultiplier;
@@ -1008,161 +1014,153 @@ void SetMotorOutputs()
     float degreesToChange = rampupDegreesPerSecond * motorMillisDelta / 1000;
 
     _currentSmartThrottleWeapon1 = 180 - _throttleWeapon1;
-    
-    if(isSmartTurning)
+
+    if (isSmartTurning)
     {
         auto lowCeiling = absAngleDifferenceFromSmartTurning * _attenuationWeaponThrottleTurning;
         auto highCeiling = 180 - (absAngleDifferenceFromSmartTurning * _attenuationWeaponThrottleTurning);
         auto marginFromZero = 20;
 
-        if(lowCeiling > (90 - marginFromZero))
+        if (lowCeiling > (90 - marginFromZero))
         {
             lowCeiling = 90 - marginFromZero;
         }
 
-        if(highCeiling < (90 + marginFromZero))
+        if (highCeiling < (90 + marginFromZero))
         {
             highCeiling = 90 + marginFromZero;
         }
 
 
-        if(_currentSmoothThrottleWeapon1 > highCeiling)
+        if (_currentSmoothThrottleWeapon1 > highCeiling)
         {
             _currentSmoothThrottleWeapon1 = highCeiling;
         }
 
-        if(_currentSmoothThrottleWeapon1 < lowCeiling)
+        if (_currentSmoothThrottleWeapon1 < lowCeiling)
         {
             _currentSmoothThrottleWeapon1 = lowCeiling;
         }
     }
-    
-    
-    if(_isTilted)
+
+
+    if (_isTilted)
     {
-        if(_currentSmoothThrottleWeapon1 > 120)
+        if (_currentSmoothThrottleWeapon1 > 120)
         {
             _currentSmoothThrottleWeapon1 = 120;
         }
 
-        if(_currentSmoothThrottleWeapon1 < 60)
+        if (_currentSmoothThrottleWeapon1 < 60)
         {
             _currentSmoothThrottleWeapon1 = 60;
         }
     }
-    
-    
+
 
     if (_currentSmoothThrottleWeapon1 > _currentSmartThrottleWeapon1)
     {
         // decrease
-        if(_currentSmartThrottleWeapon1 < 90)
+        if (_currentSmartThrottleWeapon1 < 90)
         {
             _currentSmoothThrottleWeapon1 -= degreesToChange;
         }
         else
         {
-            if(_currentSmoothThrottleWeapon1 < 93)
+            if (_currentSmoothThrottleWeapon1 < 93)
             {
-                _currentSmoothThrottleWeapon1  = 90;
+                _currentSmoothThrottleWeapon1 = 90;
             }
-            else if(_currentSmoothThrottleWeapon1 > 93 || _isTilted || isSmartTurning > _attenuationWeaponThrottle)
+            else
             {
-                _currentSmoothThrottleWeapon1 -= degreesToChange * 4 * _rampupTime;
+                if (_currentSmoothThrottleWeapon1 > 93 || _isTilted || isSmartTurning > _attenuationWeaponThrottle)
+                {
+                    _currentSmoothThrottleWeapon1 -= degreesToChange * 4 * _rampupTime;
+                }
             }
-            
+
         }
     }
     else
     {
         // increase
-        if(_currentSmartThrottleWeapon1 > 90)
+        if (_currentSmartThrottleWeapon1 > 90)
         {
             _currentSmoothThrottleWeapon1 += degreesToChange;
         }
         else
         {
-            if(_currentSmoothThrottleWeapon1 > 87)
+            if (_currentSmoothThrottleWeapon1 > 87)
             {
-                _currentSmoothThrottleWeapon1  = 90;
+                _currentSmoothThrottleWeapon1 = 90;
             }
-            else if(_currentSmoothThrottleWeapon1 < 87 || _isTilted || isSmartTurning > _attenuationWeaponThrottle)
+            else
             {
-                _currentSmoothThrottleWeapon1 += degreesToChange * 4 * _rampupTime;
+                if (_currentSmoothThrottleWeapon1 < 87 || _isTilted || isSmartTurning > _attenuationWeaponThrottle)
+                {
+                    _currentSmoothThrottleWeapon1 += degreesToChange * 4 * _rampupTime;
+                }
             }
-            
+
         }
     }
 
 
     if ((_bluetoothClientExists && _receivedHeartbeatFromClient) || _pwmTimingDebugEnabled)
     {
-        ESP32_ISR_Servos.enableAll();
+        //InitializeMotors();
     }
     else
     {
-        ESP32_ISR_Servos.disableAll();
+        DisableMotors();
     }
 
-
-
-        _currentSmartThrottleLeftDrive = smartThrottleLeftDrive;
 
 #if MOTOR_L_USES_DSHOT
-        //motorLeftDrive.sendThrottle3D(DegreesToDShotThrottle(smartThrottleLeftDrive));
-        int16_t milliswrap = sin(millis()*2/10000*PI)*50;
-        motorLeftDrive.sendThrottle3D(milliswrap);
-        SafeSerialPrintLn("new throttle: " + String(milliswrap));
-        delay(1);
+    //motorLeftDrive.sendThrottle3D(DegreesToDShotThrottle(smartThrottleLeftDrive));
+    int16_t milliswrap = sin(millis()*2/10000*PI)*50;
+    motorLeftDrive.sendThrottle3D(milliswrap);
+    SafeSerialPrintLn("new throttle: " + String(milliswrap));
+    delay(1);
 #else
-    if (_servoLIndex != -1)
-    {
-        ESP32_ISR_Servos.setPosition(_servoLIndex, smartThrottleLeftDrive);
-    }
+    allServos.write(PIN_TEST_SERVO_L, smartThrottleLeftDrive);
 #endif
+    _currentSmartThrottleLeftDrive = smartThrottleLeftDrive;
 
 
-    if (_servoRIndex != -1)
-    {
 #if MOTOR_R_USES_DSHOT
-        motorRightDrive.sendThrottle3D(DegreesToDShotThrottle(smartThrottleRightDrive));
+    motorRightDrive.sendThrottle3D(DegreesToDShotThrottle(smartThrottleRightDrive));
 #else
-        ESP32_ISR_Servos.setPosition(_servoRIndex, smartThrottleRightDrive);
+    allServos.write(PIN_TEST_SERVO_R, smartThrottleRightDrive);
 #endif
-        _currentSmartThrottleRightDrive = smartThrottleRightDrive;
+    _currentSmartThrottleRightDrive = smartThrottleRightDrive;
 
-    }
-    if (_servoW1Index != -1)
-    {
+
 #if MOTOR_W1_USES_DSHOT
-        motorWeapon1.sendThrottle3D(DegreesToDShotThrottle(_currentSmoothThrottleWeapon1));
+    motorWeapon1.sendThrottle3D(DegreesToDShotThrottle(_currentSmoothThrottleWeapon1));
 #else
-        if(_currentSmoothThrottleWeapon1 > 87 && _currentSmoothThrottleWeapon1 < 93)
-        {
-            ESP32_ISR_Servos.setPosition(_servoW1Index, 90);
-        }
-        else
-        {
-            ESP32_ISR_Servos.setPosition(_servoW1Index, _currentSmoothThrottleWeapon1);
-        }
-#endif
-
-
-
-    }
-    if (_servoW0Index != -1)
+    if (_currentSmoothThrottleWeapon1 > 87 && _currentSmoothThrottleWeapon1 < 93)
     {
-        int clampedThrottle = 0;
-        if (_throttleWeapon0 > 45)
-        {
-            clampedThrottle = 90;
-        }
-#if MOTOR_W0_USES_DSHOT
-        motorWeapon0.sendThrottleValue(DegreesToDShotThrottle(clampedThrottle));
-#else
-        ESP32_ISR_Servos.setPosition(_servoW0Index, 180-2*clampedThrottle);
-#endif
+        allServos.write(PIN_TEST_SERVO_W1, 90);
     }
+    else
+    {
+        allServos.write(PIN_TEST_SERVO_W1, _currentSmoothThrottleWeapon1);
+    }
+#endif
+
+
+    int clampedThrottle = 0;
+    if (_throttleWeapon0 > 45)
+    {
+        clampedThrottle = 90;
+    }
+#if MOTOR_W0_USES_DSHOT
+    motorWeapon0.sendThrottleValue(DegreesToDShotThrottle(clampedThrottle));
+#else
+    allServos.write(PIN_TEST_SERVO_W0, 180 - 2 * clampedThrottle);
+#endif
+
 
     /*
     if(_timeSinceLastPwmUpdateUs == 0)
@@ -1206,33 +1204,45 @@ void SetLeds()
         {
             SetMainLeds(_colorGreen);
         }
-        else if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_HIGH)
+        else
         {
-            SetMainLeds(_colorGreen);
-        }
-        else if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_LOW)
-        {
-            SetMainLeds(_colorYellow);
-
-        }
-        else if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_DEAD)
-        {
-            SetMainLeds(_colorRed);
-        }
-        else if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_USING_USB)
-        {
-            if (GetFlashValue(250, true))
+            if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_HIGH)
             {
-                SetMainLeds(_colorRed);
+                SetMainLeds(_colorGreen);
             }
             else
             {
-                SetMainLeds(_colorBlack);
+                if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_LOW)
+                {
+                    SetMainLeds(_colorYellow);
+
+                }
+                else
+                {
+                    if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_BATTERY_DEAD)
+                    {
+                        SetMainLeds(_colorRed);
+                    }
+                    else
+                    {
+                        if (_voltageReadingMillivolts > MINIMUM_VOLTAGE_USING_USB)
+                        {
+                            if (GetFlashValue(250, true))
+                            {
+                                SetMainLeds(_colorRed);
+                            }
+                            else
+                            {
+                                SetMainLeds(_colorBlack);
+                            }
+                        }
+                        else
+                        {
+                            SetMainLeds(_colorPurple);
+                        }
+                    }
+                }
             }
-        }
-        else
-        {
-            SetMainLeds(_colorPurple);
         }
 
 
@@ -1278,14 +1288,17 @@ void SetLeds()
         _colorLeftDrive = strip.ColorHSV(HUE_FORWARD, SAT_FORWARD, 40 + throttleAbsoluteStrength);
 
     }
-    else if (_currentSmartThrottleLeftDrive < 87)
-    {
-        int16_t throttleAbsoluteStrength = 90 - _currentSmartThrottleLeftDrive;
-        _colorLeftDrive = strip.ColorHSV(HUE_REVERSE, SAT_REVERSE, 40 + throttleAbsoluteStrength);
-    }
     else
     {
-        _colorLeftDrive = _colorPurple;
+        if (_currentSmartThrottleLeftDrive < 87)
+        {
+            int16_t throttleAbsoluteStrength = 90 - _currentSmartThrottleLeftDrive;
+            _colorLeftDrive = strip.ColorHSV(HUE_REVERSE, SAT_REVERSE, 40 + throttleAbsoluteStrength);
+        }
+        else
+        {
+            _colorLeftDrive = _colorPurple;
+        }
     }
 
 
@@ -1295,14 +1308,17 @@ void SetLeds()
         _colorRightDrive = strip.ColorHSV(HUE_FORWARD, SAT_FORWARD, 40 + throttleAbsoluteStrength);
 
     }
-    else if (_currentSmartThrottleRightDrive < 87)
-    {
-        int16_t throttleAbsoluteStrength = 90 - _currentSmartThrottleRightDrive;
-        _colorRightDrive = strip.ColorHSV(HUE_REVERSE, SAT_REVERSE, 40 + throttleAbsoluteStrength);
-    }
     else
     {
-        _colorRightDrive = _colorPurple;
+        if (_currentSmartThrottleRightDrive < 87)
+        {
+            int16_t throttleAbsoluteStrength = 90 - _currentSmartThrottleRightDrive;
+            _colorRightDrive = strip.ColorHSV(HUE_REVERSE, SAT_REVERSE, 40 + throttleAbsoluteStrength);
+        }
+        else
+        {
+            _colorRightDrive = _colorPurple;
+        }
     }
 
 
@@ -1312,14 +1328,17 @@ void SetLeds()
         _colorWeapon = strip.ColorHSV(HUE_REVERSE, HUE_REVERSE, 40 + throttleAbsoluteStrength);
 
     }
-    else if (_currentSmoothThrottleWeapon1 < 87)
-    {
-        int16_t throttleAbsoluteStrength = 90 - _currentSmoothThrottleWeapon1;
-        _colorWeapon = strip.ColorHSV(HUE_FORWARD, SAT_FORWARD, 40 + throttleAbsoluteStrength);
-    }
     else
     {
-        _colorWeapon = _colorPurple;
+        if (_currentSmoothThrottleWeapon1 < 87)
+        {
+            int16_t throttleAbsoluteStrength = 90 - _currentSmoothThrottleWeapon1;
+            _colorWeapon = strip.ColorHSV(HUE_FORWARD, SAT_FORWARD, 40 + throttleAbsoluteStrength);
+        }
+        else
+        {
+            _colorWeapon = _colorPurple;
+        }
     }
 
     _colorWeaponMax = strip.ColorHSV(HUE_FORWARD, SAT_FORWARD, 255.0 * _attenuationWeaponThrottle);
@@ -1328,7 +1347,7 @@ void SetLeds()
         _colorWeaponMax = strip.ColorHSV(HUE_REVERSE, HUE_REVERSE, 255);
     }
 
-    if(_isTilted)
+    if (_isTilted)
     {
         _colorTilt = strip.ColorHSV(HUE_REVERSE, HUE_REVERSE, 255);
     }
@@ -1336,7 +1355,7 @@ void SetLeds()
     {
         _colorTilt = strip.ColorHSV(HUE_REVERSE, HUE_REVERSE, 0);
     }
-    
+
     strip.setPixelColor(LED_L_DRIVE, _colorLeftDrive);
     strip.setPixelColor(LED_R_DRIVE, _colorRightDrive);
     strip.setPixelColor(LED_W1, _colorWeapon);
@@ -1468,7 +1487,6 @@ void GetAndSetBluetoothData()
                 pChrAll->setValue(_telemetryVector);
                 pChrAll->notify(true);
             }
-
             NimBLECharacteristic *pCtrlL = pSvc->getCharacteristic(CTRL_ALL_UUID);
             if (pCtrlL)
             {
@@ -1533,9 +1551,10 @@ void GetAndSetBluetoothData()
                                                                           _settingAttenuationWeaponThrottleMin,
                                                                           _settingAttenuationWeaponThrottleMax);
 
-                            _attenuationWeaponThrottleTurning = MapFloatFromByte(_settingAttenuationWeaponThrottleTurning,
-                                                                          _settingAttenuationWeaponThrottleTurningMin,
-                                                                          _settingAttenuationWeaponThrottleTurningMax);
+                            _attenuationWeaponThrottleTurning = MapFloatFromByte(
+                                    _settingAttenuationWeaponThrottleTurning,
+                                    _settingAttenuationWeaponThrottleTurningMin,
+                                    _settingAttenuationWeaponThrottleTurningMax);
 
 
                             //SafeSerialPrintLn(
@@ -1616,7 +1635,9 @@ bool isNumber(const std::string &s)
     {
         counter++;
         if (std::isdigit(ch) == 0)
+        {
             return false;
+        }
     }
 
     if (counter == 0)
