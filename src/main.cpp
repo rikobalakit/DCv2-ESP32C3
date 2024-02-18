@@ -36,7 +36,7 @@ void setup()
 #endif
 
 #if MOTORS_ENABLED
-    InitializeMotors();
+    //EnableMotors();
 #endif
 
 #if TELEMETRY_ENABLED
@@ -392,7 +392,7 @@ void InitializeBluetooth()
     _line5 = "BLE Name: " + String(BLEName.c_str());
 }
 
-void InitializeMotors()
+void EnableMotors()
 {
     DisplayText(0.25, "Attaching motors", "Pins: " + String(PIN_TEST_SERVO_L) + ", " + String(PIN_TEST_SERVO_R));
 
@@ -1108,7 +1108,7 @@ void SetMotorOutputs()
 
     if ((_bluetoothClientExists && _receivedHeartbeatFromClient) || _pwmTimingDebugEnabled)
     {
-        //InitializeMotors();
+        EnableMotors();
     }
     else
     {

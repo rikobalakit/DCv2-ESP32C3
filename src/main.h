@@ -368,7 +368,7 @@ void InitializeAccelerometer();
 
 void InitializeBluetooth();
 
-void InitializeMotors();
+void EnableMotors();
 
 void InitializeEscTelemetry();
 
